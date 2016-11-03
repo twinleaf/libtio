@@ -73,7 +73,7 @@ static inline int tl_packet_stream_id(const tl_packet_header *pkt);
 
 static inline size_t tl_packet_total_size(const tl_packet_header *pkt)
 {
-  return sizeof(*pkt) + pkt->routing_size + pkt->payload_size;
+  return sizeof(*pkt) + pkt->payload_size + pkt->routing_size;
 }
 
 static inline uint8_t *tl_packet_payload_data(tl_packet_header *pkt)
@@ -92,14 +92,37 @@ static inline int tl_packet_stream_id(const tl_packet_header *pkt)
 }
 
 #ifdef __cplusplus
-/* TODO
-inline size_t tl_packet_header::total_size() const;
-inline uint8_t *tl_packet_header::payload_data();
-inline const uint8_t *tl_packet_header::payload_data() const;
-inline uint8_t *tl_packet_header::routing_data();
-inline const uint8_t *tl_packet_header::routing_data() const;
-inline int tl_packet_header::stream_id() const;
-*/
+
+inline size_t tl_packet_header::total_size() const
+{
+  return tl_packet_total_size(this);
+}
+
+inline uint8_t *tl_packet_header::payload_data()
+{
+  return reinterpret_cast<uint8_t*>(this) + sizeof(*this);
+}
+
+inline const uint8_t *tl_packet_header::payload_data() const
+{
+  return reinterpret_cast<const uint8_t*>(this) + sizeof(*this);
+}
+
+inline uint8_t *tl_packet_header::routing_data()
+{
+  return reinterpret_cast<uint8_t*>(this) + sizeof(*this) + payload_size;
+}
+
+inline const uint8_t *tl_packet_header::routing_data() const
+{
+  return reinterpret_cast<const uint8_t*>(this) + sizeof(*this) + payload_size;
+}
+
+inline int tl_packet_header::stream_id() const
+{
+  return tl_packet_stream_id(this);
+}
+
 #endif
 
 #endif // TL_PACKET_H

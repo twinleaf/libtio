@@ -2,11 +2,13 @@
 // Author: gilberto@tersatech.com
 // License: Proprietary
 
-// send/recv interface to communicate with sensors seamlessly over all the
-// supported protocols.
-// NOTE: currently the system does not support concurrent calls from multiple
-// threads, nor opening multiple descriptors pointing to the same object (e.g.
-// by tlfdopen a descriptor obtained via dup from another descriptor).
+// API providing send/recv interface to communicate with sensors seamlessly
+// over all the supported protocols.
+// NOTE: this API is non-reentrant and must be explicitly serialized if there
+// will be concurrent calls. Never call from a signal handler.
+
+#ifndef TL_SENSOR_IO_H
+#define TL_SENSOR_IO_H
 
 #include <stddef.h>
 
@@ -36,10 +38,14 @@ extern "C" {
 //
 int tlopen(const char *url, int flags);
 
+// Use a descriptor already opened for I/O with a twinleaf sensor. Note that
+// you still need to specify a valid protocol as in tlopen(). Returns fd, or -1
+// in case of error.
 int tlfdopen(int fd, const char *protocol, const char *routing);
 
 // Close a descriptor opened with tlopen/tlfdopen. Calls close() after
-// libtwinleaf specific cleanup.
+// libtwinleaf specific cleanup. Returns 0 on success, -1 on failure
+// (in which case fd was not closed).
 int tlclose(int fd);
 
 // Receive a packet. Returns 0 if successful, -1 in case of error.
@@ -51,3 +57,5 @@ int tlsend(int fd, const void *packet);
 #ifdef __cplusplus
 }
 #endif
+
+#endif // TL_SENSOR_IO_H
