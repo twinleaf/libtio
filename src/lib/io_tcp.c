@@ -22,13 +22,27 @@ typedef struct tcp_state tcp_state;
 
 static int io_tcp_open(const char *location, int flags)
 {
+  ssize_t separator = -1;
+  // break out name and service
+  for (size_t i = 0; location[i]; i++) {
+    if (location[i] == ':') {
+      separator = i;
+      break;
+    }
+  }
+
+  char name[separator+1];
+  memcpy(name, location, separator);
+  name[separator] = '\0';
+  const char *service = location+separator+1;
+
   struct addrinfo ai;
   memset(&ai, 0, sizeof(ai));
   ai.ai_flags = AI_V4MAPPED | AI_ADDRCONFIG;
   ai.ai_socktype = SOCK_STREAM;
   ai.ai_protocol = IPPROTO_TCP;
   struct addrinfo *result;
-  if (getaddrinfo(location, NULL, &ai, &result) != 0) {
+  if (getaddrinfo(name, service, &ai, &result) != 0) {
     // TODO: write out error
     return -1;
   }
@@ -103,11 +117,12 @@ static int io_tcp_recv(void *_state, int fd, void *packet_buffer,
   while (state->in_buf < sizeof(tl_packet_header)) {
     // must read up a full packet header to know how much
     // data is in the packet
+    errno = 0;
     ssize_t ret = read(fd, state->rx_buf + state->in_buf,
                        sizeof(tl_packet_header) - state->in_buf);
 
     if (ret <= 0)
-      return ret;
+      return -1;
     else
       state->in_buf += ret;
   }
