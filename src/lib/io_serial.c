@@ -113,7 +113,10 @@ static int io_serial_open(const char *location, int flags)
   if (tcsetattr(fd, TCSANOW, &tios) != 0)
     goto close_and_error;
 
-  // TODO: add exclusive access ??
+  // Set exclusive access, so that someone does not accidentally open
+  // the same serial port twice.
+  if (ioctl(fd, TIOCEXCL, NULL) != 0)
+    goto close_and_error;
 
   return fd;
 
@@ -217,11 +220,9 @@ static int io_serial_recv(void *_state, int fd, void *packet_buffer,
   }
 }
 
-static int io_serial_send(void *_state, int fd, const void *packet,
+static int io_serial_send(fd_overlay_t *fdo, int fd, const void *packet,
                           size_t pktsize)
 {
-  (void) _state;
-
   size_t sbuf_size = TL_SERIAL_MAX_SIZE(pktsize);
   uint8_t sbuf[sbuf_size];
   size_t ser_size = tl_serial_serialize(packet, pktsize, sbuf, sbuf_size);
@@ -233,23 +234,60 @@ static int io_serial_send(void *_state, int fd, const void *packet,
   }
 
   // send the serialized packet to the device
-  // TODO: ATOMIC /usr/include/linux/serial.h
   ssize_t ret = write(fd, sbuf, ser_size);
   if (ret < 0)
     return -1;
 
   if (((size_t) ret) != ser_size) {
-    // partial writes will leave the descriptor in a bad state. TODO
-    exit(1);
+    // Partial write. We could just ignore and send back EAGAIN since SLIP
+    // allows us to recover from partial writes, but the recovery comes
+    // at the cost of the current and next packet both being not received
+    // by the other side, while taking up all the wire time for the
+    // partial write + next packet, which could be problematic on slower
+    // rate links. Since we have the machinery to do this right, let's use it.
+    size_t remaining = ser_size - ret;
+    fdo->write_buf = malloc(remaining);
+    if (!fdo->write_buf) {
+      errno = ENOMEM;
+      return -1;
+    }
+    memcpy(fdo->write_buf, sbuf + ret, remaining);
+    fdo->to_send = remaining;
   }
 
   return 0;
 }
 
-io_vtable io_serial_vtable = {
+static int io_serial_drain(fd_overlay_t *fdo, int fd)
+{
+  if (!fdo->write_buf)
+    return 0;
+
+  ssize_t ret = write(fd, fdo->write_buf, fdo->to_send);
+  if (ret < 0) {
+    if ((errno == EAGAIN) || (errno == EWOULDBLOCK))
+      ret = 0;
+    else
+      return -1;
+  }
+
+  if ((size_t)ret == fdo->to_send) {
+    free(fdo->write_buf);
+    fdo->write_buf = NULL;
+    fdo->to_send = 0;
+  } else if (ret > 0) {
+    fdo->to_send -= ret;
+    memmove(fdo->write_buf, ((uint8_t*)fdo->write_buf)+ret, fdo->to_send);
+  }
+
+  return 0;
+}
+
+io_vtable tl_io_serial_vtable = {
   io_serial_open,
   io_serial_fdopen,
   io_serial_close,
   io_serial_recv,
-  io_serial_send
+  io_serial_send,
+  io_serial_drain
 };

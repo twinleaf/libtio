@@ -13,15 +13,15 @@
 #include <errno.h>
 #include <fcntl.h>
 
-extern struct io_vtable io_serial_vtable;
-extern struct io_vtable io_tcp_vtable;
+extern struct io_vtable tl_io_serial_vtable;
+extern struct io_vtable tl_io_tcp_vtable;
 
 static struct {
   const char *protocol;
   io_vtable *vtable;
 } io_vtables[] = {
-  {"serial", &io_serial_vtable},
-  {"tcp", &io_tcp_vtable},
+  {"serial", &tl_io_serial_vtable},
+  {"tcp", &tl_io_tcp_vtable},
   {NULL, NULL}
 };
 
@@ -118,6 +118,35 @@ static int release_overlay(int fd)
   return 0;
 }
 
+static ssize_t parse_routing(uint8_t *routing_prefix,
+                             const char *routing_path)
+{
+  size_t n = 0;
+  uint8_t reverse[TL_PACKET_MAX_ROUTING_SIZE];
+
+  for (const char *s = routing_path; *s; s++) {
+    if (*s == '/')
+      continue;
+    if (n >= sizeof(reverse))
+      return -1;
+    char *end;
+    long k = strtol(s, &end, 10);
+    s = end;
+    if ((*s != '/') && (*s != '\0'))
+      return -1;
+    if ((k < 0) || (k > 255))
+      return -1;
+    reverse[n++] = k;
+    if (*s == '\0')
+      break;
+  }
+
+  for (size_t i = 0; i < n; i++)
+    routing_prefix[i] = reverse[n - i - 1];
+
+  return n;
+}
+
 int tlopen(const char *url, int flags)
 {
   // parse protocol, location, and path
@@ -144,8 +173,17 @@ int tlopen(const char *url, int flags)
   const char *routing = NULL;
   if ((url[loc_delim] == '/') && (url[loc_delim + 1] != '\0'))
     routing = url + loc_delim;
-  // TODO: routing
-  (void) routing;
+
+  uint8_t routing_prefix[TL_PACKET_MAX_ROUTING_SIZE];
+  size_t routing_len = 0;
+  if (routing) {
+    ssize_t ret = parse_routing(routing_prefix, routing);
+    if (ret < 0) {
+      errno = EINVAL;
+      return -1;
+    }
+    routing_len = ret;
+  }
 
   // break out location. will require new buffer
   size_t location_len = loc_delim - proto_delim - 3;
@@ -176,6 +214,8 @@ int tlopen(const char *url, int flags)
         close(fd);
         return -1;
       }
+      fdo->routing_size = routing_len;
+      memcpy(fdo->routing, routing_prefix, routing_len);
       return fd;
     }
   }
@@ -186,8 +226,16 @@ int tlopen(const char *url, int flags)
 
 int tlfdopen(int fd, const char *protocol, const char *routing)
 {
-  // TODO: routing
-  (void) routing;
+  uint8_t routing_prefix[TL_PACKET_MAX_ROUTING_SIZE];
+  size_t routing_len = 0;
+  if (routing) {
+    ssize_t ret = parse_routing(routing_prefix, routing);
+    if (ret < 0) {
+      errno = EINVAL;
+      return -1;
+    }
+    routing_len = ret;
+  }
 
   if (fd < 0) {
     errno = EBADF;
@@ -207,6 +255,8 @@ int tlfdopen(int fd, const char *protocol, const char *routing)
         release_overlay(fd);
         return -1;
       }
+      fdo->routing_size = routing_len;
+      memcpy(fdo->routing, routing_prefix, routing_len);
       return fd;
     }
   }
@@ -223,26 +273,65 @@ int tlclose(int fd)
     return -1;
   }
   io_vtable *vt = io_vtables[fdo->vtable_id].vtable;
-  vt->io_close(fdo->state, fd); // TODO: error handling
-  close(fd);
-  return 0;
+
+  errno = 0;
+  int ret = vt->io_close(fdo->state, fd);
+  if (ret >= 0)
+    close(fd);
+  return errno ? -1 : 0;
 }
 
 int tlsend(int fd, const void *_packet)
 {
-  tl_packet_header *packet = (tl_packet_header*) _packet;
-  // TODO: validate packet size
-//  if (pk > TL_PACKET_MAX_SIZE) {
-//    errno = EBADMSG;
-//    return -1;
-//  }
   fd_overlay_t *fdo = get_overlay(fd);
   if (!fdo) {
     errno = EINVAL;
     return -1;
   }
   io_vtable *vt = io_vtables[fdo->vtable_id].vtable;
-  return vt->io_send(fdo->state, fd, packet, tl_packet_total_size(packet));
+
+  if (fdo->write_buf) {
+    if (vt->io_drain(fdo, fd) == -1)
+      return -1;
+    if (fdo->write_buf) {
+      errno = ENOTEMPTY;
+      return -1;
+    }
+  }
+
+  const tl_packet_header *packet = (const tl_packet_header*) _packet;
+  if (!packet)
+    return 0;
+
+  if (((packet->routing_size + fdo->routing_size) >
+       TL_PACKET_MAX_ROUTING_SIZE) ||
+      (packet->payload_size > TL_PACKET_MAX_PAYLOAD_SIZE)) {
+    errno = EBADMSG;
+    return -1;
+  }
+
+  uint8_t prefix_tmp_buf[TL_PACKET_MAX_SIZE];
+
+  if (fdo->routing_size) {
+    // must append routing prefix to the end.
+    size_t sz = tl_packet_total_size(packet);
+    memcpy(prefix_tmp_buf, packet, sz);
+    memcpy(prefix_tmp_buf + sz, fdo->routing, fdo->routing_size);
+    packet = (const tl_packet_header*) prefix_tmp_buf;
+    ((tl_packet_header*)packet)->routing_size += fdo->routing_size;
+  }
+
+  int ret = vt->io_send(fdo->state, fd, packet, tl_packet_total_size(packet));
+
+  if (ret < 0)
+    return -1;
+
+  if (fdo->write_buf) {
+    errno = EOVERFLOW;
+    return -1;
+  }
+
+  return 0;
 }
 
 int tlrecv(int fd, void *packet, size_t bufsize)
@@ -253,5 +342,24 @@ int tlrecv(int fd, void *packet, size_t bufsize)
     return -1;
   }
   io_vtable *vt = io_vtables[fdo->vtable_id].vtable;
-  return vt->io_recv(fdo->state, fd, packet, bufsize);
+
+  for (;;) {
+    int ret = vt->io_recv(fdo->state, fd, packet, bufsize);
+    if (ret < 0)
+      return -1;
+    if (fdo->routing_size) {
+      // verify that if we had a prefix this message belongs to the right
+      // sensor subtree, otherwise skip this packet.
+      tl_packet_header *hdr = (tl_packet_header*) packet;
+      if (hdr->routing_size < fdo->routing_size)
+        continue;
+      uint8_t *subtree = tl_packet_routing_data(hdr) +
+        (hdr->routing_size - fdo->routing_size);
+      if (memcmp(subtree, fdo->routing, fdo->routing_size) != 0)
+        continue;
+      else
+        hdr->routing_size -= fdo->routing_size;
+    }
+    return 0;
+  }
 }

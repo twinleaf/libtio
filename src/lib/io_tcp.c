@@ -160,28 +160,57 @@ static int io_tcp_recv(void *_state, int fd, void *packet_buffer,
   return 0;
 }
 
-static int io_tcp_send(void *_state, int fd, const void *packet,
+static int io_tcp_send(fd_overlay_t *fdo, int fd, const void *packet,
                        size_t pktsize)
 {
-  (void) _state;
-
-  // TODO: atomic
-  ssize_t ret = write(fd, packet, pktsize);
-  if (ret <= 0)
+  ssize_t ret = send(fd, packet, pktsize, MSG_NOSIGNAL);
+  if (ret < 0)
     return -1;
 
   if (ret != (ssize_t)pktsize) {
-    // partial writes will leave the descriptor in a bad state. TODO
-    exit(1);
+    size_t remaining = pktsize - ret;
+    fdo->write_buf = malloc(remaining);
+    if (!fdo->write_buf) {
+      errno = ENOMEM;
+      return -1;
+    }
+    memcpy(fdo->write_buf, ((const uint8_t*)packet) + ret, remaining);
+    fdo->to_send = remaining;
   }
 
   return 0;
 }
 
-io_vtable io_tcp_vtable = {
+static int io_tcp_drain(fd_overlay_t *fdo, int fd)
+{
+  if (!fdo->write_buf)
+    return 0;
+
+  ssize_t ret = send(fd, fdo->write_buf, fdo->to_send, MSG_NOSIGNAL);
+  if (ret < 0) {
+    if ((errno == EAGAIN) || (errno == EWOULDBLOCK))
+      ret = 0;
+    else
+      return -1;
+  }
+
+  if ((size_t)ret == fdo->to_send) {
+    free(fdo->write_buf);
+    fdo->write_buf = NULL;
+    fdo->to_send = 0;
+  } else if (ret > 0) {
+    fdo->to_send -= ret;
+    memmove(fdo->write_buf, ((uint8_t*)fdo->write_buf)+ret, fdo->to_send);
+  }
+
+  return 0;
+}
+
+io_vtable tl_io_tcp_vtable = {
   io_tcp_open,
   io_tcp_fdopen,
   io_tcp_close,
   io_tcp_recv,
-  io_tcp_send
+  io_tcp_send,
+  io_tcp_drain
 };
