@@ -13,10 +13,10 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <termios.h>
+#include <sys/ioctl.h>
 
 #if defined (__linux__)
 #include <linux/serial.h>
-#include <sys/ioctl.h>
 #endif
 
 
