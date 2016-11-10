@@ -2,90 +2,123 @@
 // Author: gilberto@tersatech.com
 // License: Proprietary
 
-// Example  of issuing an RPC request with no arguments, and printing the
-// return value as a string.
+// Small program that sends an RPC request and interprets the returned value.
+// Example:
+// rpc_req serial://ttyUSB0:115200/ period u32:100
 
-// TEMP: minimal implementation of RPC. This will be in the library and
-// done much better soon. look at main()
-
-#include <twinleaf/packet.h>
-
-struct tl_rpc_request_header {
-  uint16_t id;
-  uint16_t method_id;
-} __attribute__((__packed__));
-typedef struct tl_rpc_request_header tl_rpc_request_header;
-
-#define TL_RPC_REQ_BY_NAME 0x8000
-#define TL_RPC_REQ_MAX_PAYLOAD_SIZE \
-  (TL_PACKET_MAX_PAYLOAD_SIZE - sizeof(tl_rpc_request_header))
-
-struct tl_rpc_request_packet {
-  tl_packet_header      hdr;
-  tl_rpc_request_header req;
-  uint8_t payload[TL_RPC_REQ_MAX_PAYLOAD_SIZE];
-} __attribute__((__packed__));
-typedef struct tl_rpc_request_packet tl_rpc_request_packet;
-
-int tl_rpc_request_by_name(tl_rpc_request_packet *pkt, uint16_t req_id,
-                           const char *method, void *arg, size_t arg_size);
-int tl_rpc_request_by_id(tl_rpc_request_packet *pkt, uint16_t req_id,
-                       unsigned int method, void *arg, size_t arg_size);
-
-struct tl_rpc_reply_packet {
-  tl_packet_header      hdr;
-  uint16_t req_id;
-  uint8_t payload[TL_PACKET_MAX_PAYLOAD_SIZE-sizeof(uint16_t)];
-} __attribute__((__packed__));
-typedef struct tl_rpc_reply_packet tl_rpc_reply_packet;
-
-#include <errno.h>
-#include <string.h>
-
-int tl_rpc_request_by_name(tl_rpc_request_packet *pkt, uint16_t req_id,
-                           const char *method, void *arg, size_t arg_size)
-{
-  size_t name_len = strlen(method);
-  if ((name_len + arg_size) > TL_RPC_REQ_MAX_PAYLOAD_SIZE) {
-    errno = E2BIG;
-    return -1;
-  }
-  pkt->hdr.type = TL_PTYPE_RPC_REQ;
-  pkt->hdr.routing_size = 0;
-  pkt->hdr.payload_size = sizeof(tl_rpc_request_header) + name_len + arg_size;
-  pkt->req.id = req_id;
-  // TODO: flip meaning of bit in tl-chibi
-  pkt->req.method_id = /*TL_RPC_REQ_BY_NAME |*/ name_len;
-  memcpy(pkt->payload, method, name_len);
-  memcpy(pkt->payload + name_len, arg, arg_size);
-
-  return 0;
-}
-
-
-#include <fcntl.h>
-#include <stdio.h>
+#include <twinleaf/rpc.h>
 #include <twinleaf/io.h>
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
 #include <ctype.h>
 
 int main(int argc, char *argv[])
 {
-  if (argc != 3) {
-    fprintf(stderr, "Usage: %s <sensor URL> <rpc name>\n", argv[0]);
+  if ((argc < 3) || (argc > 4)) {
+    fprintf(stderr, "Usage: %s <sensor URL> <rpc name> "
+            "[arg type:value]\n", argv[0]);
     return 1;
   }
 
-  int fd = tlopen(argv[1], /*O_NONBLOCK |*/ O_CLOEXEC);
+  size_t arg_size = 0;
+  void *arg = NULL;
+  uint8_t arg_buf[8];
 
-  tl_rpc_request_packet req;
-  tl_rpc_request_by_name(&req, 0, argv[2], NULL, 0);
-  tlsend(fd, &req);
+  // parse rpc argument
+
+  if (argc >= 4) {
+    if ((strncmp(argv[3], "u8:", 2) == 0) ||
+        (strncmp(argv[3], "u16:", 2) == 0) ||
+        (strncmp(argv[3], "u32:", 2) == 0) ||
+        (strncmp(argv[3], "u64:", 2) == 0)) {
+      // unsigned integer
+      char *end;
+      unsigned long val = strtoul(argv[3] + ((argv[3][1] == '8') ? 3 : 4),
+                                  &end, 0);
+      if (*end) {
+        fprintf(stderr, "argument parse error\n");
+        return 1;
+      }
+      *(unsigned long*)arg_buf = val;
+      arg = arg_buf;
+      switch (argv[3][1]) {
+       case '8': arg_size = 1; break;
+       case '1': arg_size = 2; break;
+       case '3': arg_size = 4; break;
+       case '6': arg_size = 8; break;
+      }
+    } else if ((strncmp(argv[3], "i8:", 2) == 0) ||
+               (strncmp(argv[3], "i16:", 2) == 0) ||
+               (strncmp(argv[3], "i32:", 2) == 0) ||
+               (strncmp(argv[3], "i64:", 2) == 0)) {
+      // signed integer
+      char *end;
+      long val = strtol(argv[3] + ((argv[3][1] == '8') ? 3 : 4), &end, 0);
+      if (*end) {
+        fprintf(stderr, "argument parse error\n");
+        return 1;
+      }
+      *(long*)arg_buf = val;
+      arg = arg_buf;
+      switch (argv[3][1]) {
+       case '8': arg_size = 1; break;
+       case '1': arg_size = 2; break;
+       case '3': arg_size = 4; break;
+       case '6': arg_size = 8; break;
+      }
+    } else if ((strncmp(argv[3], "f32:", 2) == 0) ||
+               (strncmp(argv[3], "f64:", 2) == 0)) {
+      // floating point
+      char *end;
+      double val = strtod(argv[3] + 4, &end);
+      if (*end) {
+        fprintf(stderr, "argument parse error\n");
+        return 1;
+      }
+      arg = arg_buf;
+      switch (argv[3][1]) {
+       case '3':
+        *(float*)arg_buf = val;
+        arg_size = 4;
+        break;
+       case '6':
+        *(double*)arg_buf = val;
+        arg_size = 8;
+        break;
+      }
+    } else {
+      // string argument
+      arg_size = strlen(argv[3]);
+      if (strncmp(argv[3], "s:", 2) == 0) {
+        arg_size -= 2;
+        arg = argv[3] + 2;
+      } else {
+        arg = argv[3];
+      }
+    }
+  }
+
+  int fd = tlopen(argv[1], 0);
+  if (fd < 0) {
+    fprintf(stderr, "Failed to open %s: %s\n", argv[1], strerror(errno));
+    return 1;
+  }
+
   tl_rpc_reply_packet rep;
-  tlrecv(fd, &rep, sizeof(req));
+  int ret = tl_simple_rpc(fd, argv[2], 0, arg, arg_size, &rep, NULL);
+  if (ret < 0)
+    fprintf(stderr, "RPC failed: %s\n", strerror(errno));
+  if (ret > 0)
+    fprintf(stderr, "RPC failed: %s\n", tl_rpc_strerror(ret));
+  if (ret != 0)
+    return 1;
 
   tlclose(fd);
 
-  size_t rep_size = rep.hdr.payload_size - 2;
+  size_t rep_size = tl_rpc_reply_payload_size(&rep);
 
   int print = 1;
   for(size_t i = 0; i < rep_size; i++) {
@@ -105,25 +138,24 @@ int main(int argc, char *argv[])
     puts("\"");
   }
 
-  if (rep_size == 2) {
+  if (rep_size == 1) {
+    int8_t s = *(int8_t*)rep.payload;
+    uint8_t u = *(uint8_t*)rep.payload;
+    printf("u8: 0x%02X %u\ns8:%hd\n", u, u, s);
+  } else  if (rep_size == 2) {
     int16_t s = *(int16_t*)rep.payload;
     uint16_t u = *(uint16_t*)rep.payload;
-    printf("0x%04hX %hu %hd\n", u, u, s);
+    printf("u16: 0x%04hX %hu\ns16:%hd\n", u, u, s);
   } else  if (rep_size == 4) {
     int32_t s = *(int32_t*)rep.payload;
     uint32_t u = *(uint32_t*)rep.payload;
     float f = *(float*)rep.payload;
-    printf("0x%08X %u %d %f\n", u, u, s, f);
-  } else  if (rep_size == 4) {
-    int32_t s = *(int32_t*)rep.payload;
-    uint32_t u = *(uint32_t*)rep.payload;
-    float f = *(float*)rep.payload;
-    printf("0x%08X %u %d %f\n", u, u, s, f);
+    printf("u32: 0x%08X %u\ns32: %d\nf32: %f\n", u, u, s, f);
   } else  if (rep_size == 8) {
     int64_t s = *(int64_t*)rep.payload;
     uint64_t u = *(uint64_t*)rep.payload;
     double f = *(double*)rep.payload;
-    printf("0x%016lX %lu %ld %lf\n", u, u, s, f);
+    printf("u64: 0x%016lX %lu\ns64: %ld\nf64:%lf\n", u, u, s, f);
   }
 
   return 0;

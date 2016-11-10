@@ -45,13 +45,8 @@ size_t tl_serial_serialize(const void *pkt, size_t pkt_size,
 struct tl_serial_deserializer;
 typedef struct tl_serial_deserializer tl_serial_deserializer;
 
-// Flag for deserializer to ignore any data until the first packet terminator
-// (useful to suppress an initial error if parsing data mid-stream).
-#define TL_SERIAL_IGNORE_FIRST 1
-
 // Create a deserializer for packets up to a given size.
-tl_serial_deserializer *tl_serial_create_deserializer(size_t max_packet_size,
-                                                      int flags);
+tl_serial_deserializer *tl_serial_create_deserializer(size_t max_packet_size);
 
 // Destroy a deserializer. Any pointer to data received from a deserializer
 // becomes invalid.

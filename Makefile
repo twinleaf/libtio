@@ -3,7 +3,8 @@
 # License: Proprietary
 
 CC = gcc
-CCFLAGS = -g -Wall -Wextra -Iinclude/
+CCFLAGS = -g -Wall -Wextra -Iinclude/ -std=gnu11
+CXXFLAGS = -g -Wall -Wextra -Iinclude/
 
 .DEFAULT_GOAL = all
 .SECONDARY:
@@ -34,7 +35,10 @@ obj/bin/%.o: src/bin/%.c $(BIN_HEADERS) | obj/bin
 bin/%: obj/bin/%.o lib/libtwinleaf.a | bin
 	@$(CC) -Llib -o $@ $< -ltwinleaf
 
-binaries: $(BIN_BINS)
+bin/vm4: src/bin/vm4.cpp $(BIN_HEADERS) | bin
+	@g++ -Llib $(CXXFLAGS) -o $@ $< -ltwinleaf
+
+binaries: $(BIN_BINS) bin/vm4
 
 all: lib/libtwinleaf.a binaries
 

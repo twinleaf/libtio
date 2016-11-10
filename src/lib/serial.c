@@ -54,11 +54,10 @@ struct tl_serial_deserializer {
   int esc;
 };
 
-// To skip a packet, pick a flag that does not interfere with the error codes
-#define TL_SERIAL_SKIP 0x800000
+// This is the first packet being parsed
+#define TL_SERIAL_FIRST 0x800000
 
-tl_serial_deserializer *tl_serial_create_deserializer(size_t max_packet_size,
-                                                      int flags)
+tl_serial_deserializer *tl_serial_create_deserializer(size_t max_packet_size)
 {
   tl_serial_deserializer *ret =
     (tl_serial_deserializer*) malloc(sizeof(tl_serial_deserializer));
@@ -73,7 +72,7 @@ tl_serial_deserializer *tl_serial_create_deserializer(size_t max_packet_size,
   }
 
   ret->offset = 0;
-  ret->error = (flags & TL_SERIAL_IGNORE_FIRST) ? TL_SERIAL_SKIP : 0;
+  ret->error = TL_SERIAL_FIRST;
   ret->esc = 0;
 
   return ret;
@@ -100,26 +99,24 @@ tl_serial_deserializer_ret tl_serial_deserialize(tl_serial_deserializer *des,
     if (c == TL_SERIAL_SLIP_END) {
       // end of packet delimiter.
       ret.valid = 1;
-      ret.error = des->error;
+      ret.error = des->error & ~TL_SERIAL_FIRST;
       ret.data = des->buf;
       ret.size = des->offset;
+
+      if (des->esc)
+        ret.error |= TL_SERIAL_ERROR_DANGLING_ESC;
+
       des->offset = 0;
       des->error = 0;
       des->esc = 0;
-      if (ret.error & TL_SERIAL_SKIP) {
-        continue;
-      } else {
-        // we were not skipping this packet, so return to caller
-        if (des->esc)
-          ret.error |= TL_SERIAL_ERROR_DANGLING_ESC;
-        if (ret.size <= TL_CRC32_SIZE)
-          ret.error |= TL_SERIAL_ERROR_SHORT;
-        else {
-          uint32_t data_crc = tl_crc32(ret.data, ret.size - TL_CRC32_SIZE);
-          uint32_t pkt_crc = *(uint32_t*)&ret.data[ret.size - TL_CRC32_SIZE];
-          if (data_crc != pkt_crc)
-            ret.error |= TL_SERIAL_ERROR_CRC;
-        }
+
+      if (ret.size < TL_CRC32_SIZE)
+        ret.error |= TL_SERIAL_ERROR_SHORT;
+      else {
+        uint32_t data_crc = tl_crc32(ret.data, ret.size - TL_CRC32_SIZE);
+        uint32_t pkt_crc = *(uint32_t*)&ret.data[ret.size - TL_CRC32_SIZE];
+        if (data_crc != pkt_crc)
+          ret.error |= TL_SERIAL_ERROR_CRC;
 
         if (!ret.error)
           ret.size -= TL_CRC32_SIZE;
@@ -146,7 +143,11 @@ tl_serial_deserializer_ret tl_serial_deserialize(tl_serial_deserializer *des,
     }
 
     if (des->offset < des->buf_size) {
-      des->buf[des->offset++] = c;
+      // At least in linux, the FTDI driver some times dumps a bunch of zeroes
+      // before the first data that is received. Not sure why, but since packet
+      // type zero is invalid, this is a workaround.
+      if (des->offset || c || !(des->error & TL_SERIAL_FIRST))
+        des->buf[des->offset++] = c;
     } else {
       des->error |= TL_SERIAL_ERROR_TOOBIG;
     }

@@ -118,35 +118,6 @@ static int release_overlay(int fd)
   return 0;
 }
 
-static ssize_t parse_routing(uint8_t *routing_prefix,
-                             const char *routing_path)
-{
-  size_t n = 0;
-  uint8_t reverse[TL_PACKET_MAX_ROUTING_SIZE];
-
-  for (const char *s = routing_path; *s; s++) {
-    if (*s == '/')
-      continue;
-    if (n >= sizeof(reverse))
-      return -1;
-    char *end;
-    long k = strtol(s, &end, 10);
-    s = end;
-    if ((*s != '/') && (*s != '\0'))
-      return -1;
-    if ((k < 0) || (k > 255))
-      return -1;
-    reverse[n++] = k;
-    if (*s == '\0')
-      break;
-  }
-
-  for (size_t i = 0; i < n; i++)
-    routing_prefix[i] = reverse[n - i - 1];
-
-  return n;
-}
-
 int tlopen(const char *url, int flags)
 {
   // parse protocol, location, and path
@@ -166,7 +137,7 @@ int tlopen(const char *url, int flags)
   }
 
   for (loc_delim = proto_delim + 3; (url[loc_delim] != '/') &&
-         (url[loc_delim] != '/'); ++loc_delim) {
+         (url[loc_delim] != '\0'); ++loc_delim) {
   }
 
   // break out routing prefix, will look something like "/1/2/3/"
@@ -177,7 +148,7 @@ int tlopen(const char *url, int flags)
   uint8_t routing_prefix[TL_PACKET_MAX_ROUTING_SIZE];
   size_t routing_len = 0;
   if (routing) {
-    ssize_t ret = parse_routing(routing_prefix, routing);
+    ssize_t ret = tl_parse_routing(routing_prefix, routing);
     if (ret < 0) {
       errno = EINVAL;
       return -1;
@@ -229,7 +200,7 @@ int tlfdopen(int fd, const char *protocol, const char *routing)
   uint8_t routing_prefix[TL_PACKET_MAX_ROUTING_SIZE];
   size_t routing_len = 0;
   if (routing) {
-    ssize_t ret = parse_routing(routing_prefix, routing);
+    ssize_t ret = tl_parse_routing(routing_prefix, routing);
     if (ret < 0) {
       errno = EINVAL;
       return -1;

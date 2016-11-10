@@ -42,6 +42,12 @@ typedef struct tl_packet_header tl_packet_header;
 #define TL_PACKET_MAX_PAYLOAD_SIZE \
   (TL_PACKET_MAX_SIZE - sizeof(tl_packet_header) - TL_PACKET_MAX_ROUTING_SIZE)
 
+struct tl_packet {
+  tl_packet_header hdr;
+  uint8_t payload[TL_PACKET_MAX_PAYLOAD_SIZE + TL_PACKET_MAX_ROUTING_SIZE];
+};
+typedef struct tl_packet tl_packet;
+
 // Packet types
 #define TL_PTYPE_INVALID     0
 #define TL_PTYPE_LOG         1 // Log messages
@@ -67,6 +73,12 @@ static inline uint8_t *tl_packet_routing_data(tl_packet_header *pkt);
 // is not that of a stream data packet
 static inline int tl_packet_stream_id(const tl_packet_header *pkt);
 
+// Parse a null terminated string of the form "/3/1/" into a binary routing
+// encoding (which can be written directly to the routing data of a packet).
+// Leading and trailing '/' optional. routing_prefix must point to at least
+// TL_PACKET_MAX_ROUTING_SIZE bytes. Returns the number of hops that were
+// parsed, or -1 in case of failure.
+int tl_parse_routing(uint8_t *routing_prefix, const char *routing_path);
 
 //////////////////////////////////////
 // Implementation of inline methods

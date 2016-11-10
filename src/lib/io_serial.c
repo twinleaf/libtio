@@ -26,7 +26,7 @@
 #define SERIAL_READ_BUF_SIZE 1024
 
 struct serial_state {
-  size_t tx_buf_size;
+  int parsed_first_packet;
 
   uint8_t *buf;
   size_t buf_size;
@@ -64,7 +64,7 @@ static int io_serial_open(const char *location, int flags)
   memcpy(dev+5, location, port_len);
   dev[5+port_len] = '\0';
 
-  int fd = open(dev, O_RDWR | O_NOCTTY | O_SYNC | (flags & ~O_NONBLOCK));
+  int fd = open(dev, O_RDWR | O_NOCTTY | (flags & ~O_NONBLOCK));
   if (fd < 0)
     return -1;
 
@@ -104,8 +104,6 @@ static int io_serial_open(const char *location, int flags)
   struct termios tios;
   __builtin_memset(&tios, 0, sizeof(tios));
   tios.c_cflag = CS8|CREAD|CLOCAL;
-  if (!(flags & O_NONBLOCK))
-    tios.c_cc[VMIN] = 1;
   if (cfsetispeed(&tios, speed) != 0)
     goto close_and_error;
   if (cfsetospeed(&tios, speed) != 0)
@@ -117,6 +115,28 @@ static int io_serial_open(const char *location, int flags)
   // the same serial port twice.
   if (ioctl(fd, TIOCEXCL, NULL) != 0)
     goto close_and_error;
+
+  // Write a terminator character just in case there was a partial packet
+  // buffered on the other side.
+  unsigned char terminator = TL_SERIAL_SLIP_END;
+  write(fd, &terminator, 1);
+
+  // Up to here, the terminal is in nonblocking mode. Clear up any pending
+  // data that is probably junk (partial packets, missing escapes or
+  // terminators). At least on linux, tcdrain does not actually do anything
+  // about the data in the device's buffer, so we must read.
+  {
+    uint8_t drain_buf[128];
+    while (read(fd, drain_buf, sizeof(drain_buf)) > 0) {
+    }
+  }
+
+  // Now set the terminal to blocking mode if needed
+  if (!(flags & O_NONBLOCK)) {
+    tios.c_cc[VMIN] = 1;
+    if (tcsetattr(fd, TCSANOW, &tios) != 0)
+      goto close_and_error;
+  }
 
   return fd;
 
@@ -134,7 +154,8 @@ static int io_serial_fdopen(fd_overlay_t *fdo, int fd)
   serial_state *state = (serial_state*) malloc(sizeof(serial_state));
 
   if (state) {
-    state->des = tl_serial_create_deserializer(DESERIALIZER_BUF_SIZE, 0);
+    state->parsed_first_packet = 0;
+    state->des = tl_serial_create_deserializer(DESERIALIZER_BUF_SIZE);
 
     if (state->des) {
       state->buf_size = SERIAL_READ_BUF_SIZE;
@@ -173,7 +194,6 @@ static int io_serial_recv(void *_state, int fd, void *packet_buffer,
                           size_t bufsize)
 {
   serial_state *state = (serial_state*) _state;
-
   for (;;) {
     if (state->start == state->end) {
       // out of data in the buffer, refill buffer and process data
@@ -194,7 +214,19 @@ static int io_serial_recv(void *_state, int fd, void *packet_buffer,
       tl_serial_deserialize(state->des, &state->start,
                             state->end);
 
+    int first = !state->parsed_first_packet;
+    state->parsed_first_packet = 1;
+
     if (ret.valid) {
+      // Often time, the first packet will start mid-stream or have other
+      // artifacts due to buffering conditions, so if there is an error
+      // that is not purely in the SLIP encoding, ignore it and try to
+      // get the next packet.
+      if (ret.error && first &&
+          ((ret.error & (TL_SERIAL_ERROR_DANGLING_ESC |
+                         TL_SERIAL_ERROR_ESC_CODE)) == 0))
+          continue;
+
       if (ret.error || (ret.size > TL_PACKET_MAX_SIZE)) {
         // error. TODO: debug options to write out error in more detail??
         errno = EPROTO;
