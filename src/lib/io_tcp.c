@@ -14,6 +14,18 @@
 #include <errno.h>
 #include <fcntl.h>
 
+#ifndef MSG_NOSIGNAL
+#ifdef __APPLE__
+// Sadly, OS X does not implement POSIX.1-2008's MSG_NOSIGNAL at this time,
+// so define it manually as zero and set SO_NOSIGPIPE in fdopen. Note:
+// it's not present in linux, so there is no way to use this way for both.
+#define MSG_NOSIGNAL 0
+#define SET_NOSIGPIPE_SOCK_OPTION 1
+#else
+#error MSG_NOSIGNAL is missing
+#endif
+#endif
+
 struct tcp_state {
   uint8_t rx_buf[TL_PACKET_MAX_SIZE];
   size_t in_buf;
@@ -90,6 +102,10 @@ static int io_tcp_open(const char *location, int flags)
 
 static int io_tcp_fdopen(fd_overlay_t *fdo, int fd)
 {
+#if SET_NOSIGPIPE_SOCK_OPTION
+  int one = 1;
+  setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
+#endif
   tcp_state *state = (tcp_state*) malloc(sizeof(tcp_state));
   if (!state) {
     errno = ENOMEM;
