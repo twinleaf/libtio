@@ -71,12 +71,15 @@ static inline size_t tl_rpc_reply_payload_size(const tl_rpc_reply_packet *rep);
 // RPC Errors
 typedef uint16_t rpc_error_t;
 #define TL_RPC_ERROR_NONE       0 // No error condition
-#define TL_RPC_ERROR_UNDEFNED   1 // No error code for this error, check message
+#define TL_RPC_ERROR_UNDEFINED  1 // No error code for this error, check message
 #define TL_RPC_ERROR_NOTFOUND   2 // Call to a nonexistent (or disabled) RPC
 #define TL_RPC_ERROR_MALFORMED  3 // Malformed req packet
-#define TL_RPC_ERROR_ARGS       4 // Error with the arguments
-#define TL_RPC_ERROR_TIMEOUT    5 // Internal timeout condition
-#define TL_RPC_ERROR_USER       6 // Start value to define per-RPC error codes
+#define TL_RPC_ERROR_ARGS_SIZE  4 // Arguments have the wrong size
+#define TL_RPC_ERROR_ARGS_VAL   5 // Arguments values invalid
+#define TL_RPC_ERROR_READ_ONLY  6 // Attempted to assign a value to RO variable
+#define TL_RPC_ERROR_WRITE_ONLY 7 // Attempted to read WO variable
+#define TL_RPC_ERROR_TIMEOUT    8 // Internal timeout condition
+#define TL_RPC_ERROR_USER       9 // Start value to define per-RPC error codes
 
 struct tl_rpc_error_header {
   uint16_t req_id;

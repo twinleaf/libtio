@@ -55,7 +55,8 @@ typedef struct tl_packet tl_packet;
 #define TL_PTYPE_RPC_REP     3 // RPC reply
 #define TL_PTYPE_RPC_ERROR   4 // RPC error
 #define TL_PTYPE_STREAMDESC  5 // Description of data in a stream
-#define TL_PTYPE_USER        6
+#define TL_PTYPE_DISCOVER    6 // Node discovery of sensor tree
+#define TL_PTYPE_USER        7
 
 #define TL_PTYPE_STREAM0   128 // First data stream
 #define TL_PTYPE_STREAM(N) (TL_PTYPE_STREAM0 + (N))

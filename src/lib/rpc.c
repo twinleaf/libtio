@@ -25,14 +25,20 @@ const char *tl_rpc_strerror(rpc_error_t err_code)
   switch (err_code) {
    case TL_RPC_ERROR_NONE:
     return "No error";
-   case TL_RPC_ERROR_UNDEFNED:
+   case TL_RPC_ERROR_UNDEFINED:
     return "Generic error";
    case TL_RPC_ERROR_NOTFOUND:
     return "Method not found";
    case TL_RPC_ERROR_MALFORMED:
     return "Malformed request";
-   case TL_RPC_ERROR_ARGS:
-    return "Arguments error";
+   case TL_RPC_ERROR_ARGS_SIZE:
+    return "Arguments wrong size";
+   case TL_RPC_ERROR_ARGS_VAL:
+    return "Arguments value error";
+   case TL_RPC_ERROR_READ_ONLY:
+    return "Attempted to assign read-only value";
+   case TL_RPC_ERROR_WRITE_ONLY:
+    return "Attempted to read write-only value";
    case TL_RPC_ERROR_TIMEOUT:
     return "Internal timeout";
    default:
