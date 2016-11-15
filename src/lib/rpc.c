@@ -41,6 +41,13 @@ const char *tl_rpc_strerror(rpc_error_t err_code)
     return "Attempted to read write-only value";
    case TL_RPC_ERROR_TIMEOUT:
     return "Internal timeout";
+   case TL_RPC_ERROR_BUSY:
+    return "Unable to fulfull request at the time. Try again later.";
+   case TL_RPC_ERROR_SAVE:
+    return "Error when writing configuration to EEPROM.";
+   case TL_RPC_ERROR_LOAD:
+    return "Error when reading configuration from EEPROM. Variables "
+      "can be in an inconsistent state";
    default:
     return "User defined error";
   }

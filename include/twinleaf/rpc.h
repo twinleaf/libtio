@@ -79,7 +79,10 @@ typedef uint16_t rpc_error_t;
 #define TL_RPC_ERROR_READ_ONLY  6 // Attempted to assign a value to RO variable
 #define TL_RPC_ERROR_WRITE_ONLY 7 // Attempted to read WO variable
 #define TL_RPC_ERROR_TIMEOUT    8 // Internal timeout condition
-#define TL_RPC_ERROR_USER       9 // Start value to define per-RPC error codes
+#define TL_RPC_ERROR_BUSY       9 // Busy to perform this operation. try again
+#define TL_RPC_ERROR_SAVE      10 // Error saving conf.
+#define TL_RPC_ERROR_LOAD      11 // Error loading conf.
+#define TL_RPC_ERROR_USER      12 // Start value to define per-RPC error codes
 
 struct tl_rpc_error_header {
   uint16_t req_id;
