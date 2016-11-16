@@ -92,6 +92,9 @@ tl_serial_deserializer_ret tl_serial_deserialize(tl_serial_deserializer *des,
                                                  const uint8_t *end)
 {
   tl_serial_deserializer_ret ret;
+  // will set valid = 0.could do before returning, but on some compilers
+  // it causes warnings for using uninitialized values.
+  memset(&ret, 0, sizeof(ret));
 
   while (*start_ptr < end) {
     uint8_t c = *((*start_ptr)++);
@@ -154,6 +157,5 @@ tl_serial_deserializer_ret tl_serial_deserialize(tl_serial_deserializer *des,
   }
 
   // if we got here, the input data is over before finishing a packet
-  memset(&ret, 0, sizeof(ret)); // will set valid = 0
   return ret;
 }
