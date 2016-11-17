@@ -20,6 +20,8 @@
 #define TL_DATA_TYPE_FLOAT32    0x42
 #define TL_DATA_TYPE_FLOAT64    0x82
 
+static inline size_t tl_data_type_size(unsigned type);
+
 struct tl_data_stream_desc_header {
   // Stream ID described by these parameters
   uint8_t stream_id;
@@ -34,17 +36,15 @@ struct tl_data_stream_desc_header {
   // Arbitrary ID that should change when an acquisition is restarted
   uint8_t restart_id;
 
-  // Sampling period, in ns
-  uint32_t period;
+  // Sampling period, in us
+  uint32_t period_numerator;
+  uint32_t period_denominator;
 
   // High dword of internal 64 bit sample counter
   uint32_t samples_msd;
 
-  // Start timestamp, in ns from start of sensor
-  uint64_t start_ts;
-
-  // Abs start timestamp, unix time in ns
-  uint64_t abs_start_ts;
+  // Start timestamp, in ns (epoch depends on data stream)
+  uint64_t start_timestamp;
 } __attribute__((__packed__));
 typedef struct tl_data_stream_desc_header tl_data_stream_desc_header;
 
@@ -67,5 +67,11 @@ struct tl_data_stream_packet {
   uint8_t data[TL_DATA_STREAM_MAX_PAYLOAD_SIZE];
 };
 typedef struct tl_data_stream_packet tl_data_stream_packet;
+
+
+static inline size_t tl_data_type_size(unsigned type)
+{
+  return (type >> 4) & 0xF;
+}
 
 #endif // TL_DATA_H
