@@ -22,6 +22,22 @@
 
 static inline size_t tl_data_type_size(unsigned type);
 
+//////////////////////////////////////
+// Data stream flags, timestamp types
+
+// Desc sent out before first sample
+#define TL_DATA_STREAM_FIRST        0x01
+// This acquisition was completed (there will be no more data)
+#define TL_DATA_STREAM_STOPPED      0x02
+
+
+// Timestamp relative to the beginning of the data acquisition (always zero)
+#define TL_DATA_STREAM_TSTAMP_ZERO  0
+// Timestamp relative to device boot using device timebase
+#define TL_DATA_STREAM_TSTAMP_DEV   1
+// Timestamp is UNIX time (!= time since UNIX epoch)
+#define TL_DATA_STREAM_TSTAMP_UNIX  2
+
 struct tl_data_stream_desc_header {
   // Stream ID described by these parameters
   uint8_t stream_id;
@@ -36,15 +52,21 @@ struct tl_data_stream_desc_header {
   // Arbitrary ID that should change when an acquisition is restarted
   uint8_t restart_id;
 
+  // Start timestamp, in ns (epoch depends on flags)
+  uint64_t start_timestamp;
+
+  // Sample number of the first sample in the last packet sent,
+  // or of the next packet if FIRST flag is set (in that case, it is
+  // not guaranteed that it won't skip)
+  uint64_t sample_counter;
+
   // Sampling period, in us
   uint32_t period_numerator;
   uint32_t period_denominator;
 
-  // High dword of internal 64 bit sample counter
-  uint32_t samples_msd;
-
-  // Start timestamp, in ns (epoch depends on data stream)
-  uint64_t start_timestamp;
+  // Flags and timestamp type
+  uint8_t flags;
+  uint8_t tstamp_type;
 } __attribute__((__packed__));
 typedef struct tl_data_stream_desc_header tl_data_stream_desc_header;
 
@@ -55,7 +77,7 @@ struct tl_data_stream_desc_packet {
   tl_packet_header hdr;
   tl_data_stream_desc_header desc;
   char name[TL_DATA_STREAM_MAX_NAME_LEN]; // not null terminated
-};
+} __attribute__((__packed__));
 typedef struct tl_data_stream_desc_packet tl_data_stream_desc_packet;
 
 #define TL_DATA_STREAM_MAX_PAYLOAD_SIZE \
@@ -65,7 +87,7 @@ struct tl_data_stream_packet {
   tl_packet_header hdr;
   uint32_t start_sample; // low 32 bit of sample counter
   uint8_t data[TL_DATA_STREAM_MAX_PAYLOAD_SIZE];
-};
+} __attribute__((__packed__));
 typedef struct tl_data_stream_packet tl_data_stream_packet;
 
 
