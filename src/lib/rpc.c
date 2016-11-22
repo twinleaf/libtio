@@ -42,7 +42,9 @@ const char *tl_rpc_strerror(rpc_error_t err_code)
    case TL_RPC_ERROR_TIMEOUT:
     return "Internal timeout";
    case TL_RPC_ERROR_BUSY:
-    return "Unable to fulfull request at the time. Try again later.";
+    return "Unable to fulfill request at the time. Try again later.";
+   case TL_RPC_ERROR_STATE:
+    return "Device state incompatible with requested action.";
    case TL_RPC_ERROR_SAVE:
     return "Error when writing configuration to EEPROM.";
    case TL_RPC_ERROR_LOAD:

@@ -246,9 +246,12 @@ int tlclose(int fd)
   io_vtable *vt = io_vtables[fdo->vtable_id].vtable;
 
   errno = 0;
-  int ret = vt->io_close(fdo->state, fd);
-  if (ret >= 0)
-    close(fd);
+  int closeme = vt->io_close(fdo->state, fd);
+
+  release_overlay(fd);
+  if (closeme >= 0)
+    close(closeme);
+
   return errno ? -1 : 0;
 }
 

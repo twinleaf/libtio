@@ -2,12 +2,7 @@
 // Author: gilberto@tersatech.com
 // License: Proprietary
 
-// Platform-independent packet-related structures and constants for native
-// packets in TL firmwares. Packets are comprised of a header, followed
-// by a payload, followed by optional routing information (used to dispatch
-// messages to/from a network of sensors).
-// The header conveys the packet type and the sizes of the two following
-// sections.
+// Structures, constants, and helpers for RPC related packets.
 
 #ifndef TL_RPC_H
 #define TL_RPC_H
@@ -25,6 +20,7 @@ typedef struct tl_rpc_request_header tl_rpc_request_header;
 #define TL_RPC_REQUEST_MAX_PAYLOAD_SIZE \
   (TL_PACKET_MAX_PAYLOAD_SIZE - sizeof(tl_rpc_request_header))
 
+// TODO: can we just have payload without the routing size???
 struct tl_rpc_request_packet {
   tl_packet_header      hdr;
   tl_rpc_request_header req;
@@ -66,6 +62,7 @@ struct tl_rpc_reply_packet {
 } __attribute__((__packed__));
 typedef struct tl_rpc_reply_packet tl_rpc_reply_packet;
 
+static inline tl_rpc_reply_packet *tl_rpc_make_reply(tl_rpc_request_packet *r);
 static inline size_t tl_rpc_reply_payload_size(const tl_rpc_reply_packet *rep);
 
 // RPC Errors
@@ -107,6 +104,8 @@ struct tl_rpc_error_packet {
 } __attribute__((__packed__));
 typedef struct tl_rpc_error_packet tl_rpc_error_packet;
 
+static inline tl_rpc_error_packet *tl_rpc_make_error(tl_rpc_request_packet *r,
+                                                     rpc_error_t code);
 static inline size_t tl_rpc_error_payload_size(const tl_rpc_error_packet *err);
 
 #ifdef __cplusplus
@@ -157,9 +156,29 @@ size_t tl_rpc_request_method_size(const tl_rpc_request_packet *req)
     (req->req.method_id & TL_RPC_REQUEST_NAMELEN_MASK) : 0;
 }
 
+static inline tl_rpc_reply_packet *tl_rpc_make_reply(tl_rpc_request_packet *r)
+{
+  tl_rpc_reply_packet *rep = (tl_rpc_reply_packet*) r;
+  rep->hdr.type = TL_PTYPE_RPC_REP;
+  rep->hdr.routing_size = 0;
+  rep->hdr.payload_size = sizeof(tl_rpc_reply_header);
+  return rep;
+}
+
 static inline size_t tl_rpc_reply_payload_size(const tl_rpc_reply_packet *rep)
 {
   return rep->hdr.payload_size - sizeof(tl_rpc_reply_header);
+}
+
+static inline tl_rpc_error_packet *tl_rpc_make_error(tl_rpc_request_packet *r,
+                                                     rpc_error_t code)
+{
+  tl_rpc_error_packet *err = (tl_rpc_error_packet*) r;
+  err->hdr.type = TL_PTYPE_RPC_ERROR;
+  err->hdr.routing_size = 0;
+  err->hdr.payload_size = sizeof(tl_rpc_error_header);
+  err->err.code = code;
+  return err;
 }
 
 static inline size_t tl_rpc_error_payload_size(const tl_rpc_error_packet *err)
