@@ -4,11 +4,12 @@
 
 #include <twinleaf/packet.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <assert.h>
 
 static_assert(sizeof(tl_packet) == TL_PACKET_MAX_SIZE, "packet size mismatch");
 
-int tl_parse_routing(uint8_t *routing_prefix, const char *routing_path)
+int tl_parse_routing(uint8_t *routing, const char *routing_path)
 {
   size_t n = 0;
   uint8_t reverse[TL_PACKET_MAX_ROUTING_SIZE];
@@ -31,7 +32,34 @@ int tl_parse_routing(uint8_t *routing_prefix, const char *routing_path)
   }
 
   for (size_t i = 0; i < n; i++)
-    routing_prefix[i] = reverse[n - i - 1];
+    routing[i] = reverse[n - i - 1];
 
   return n;
+}
+
+int tl_format_routing(uint8_t *routing, size_t routing_size,
+                      char *buf, size_t buf_size)
+{
+  if (routing_size > TL_PACKET_MAX_ROUTING_SIZE)
+    return -1;
+  int slash = 0;
+  while ((routing_size > 0) && (buf_size > 0)) {
+    unsigned n = routing[--routing_size];
+    int ret = snprintf(buf, buf_size, "/%u", n);
+    if (ret < 0)
+      return -1;
+    if (buf_size < ((size_t)ret + 1))
+      ret = buf_size - 1; // ret now is the number of non-null chars written
+    buf += ret;
+    buf_size -= ret;
+    slash = 1;
+  }
+  if (!slash && (buf_size >= 2)) {
+    *(buf++) = '/';
+    buf_size--;
+  }
+  if (buf_size >= 1) {
+    *buf = '\0';
+  }
+  return 0;
 }

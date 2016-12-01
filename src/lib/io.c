@@ -4,10 +4,12 @@
 
 #include <twinleaf/packet.h>
 #include <twinleaf/io.h>
-#include "io_vtable.h"
+#include "io_internal.h"
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <stdarg.h>
 
 #include <unistd.h>
 #include <errno.h>
@@ -24,6 +26,25 @@ static struct {
   {"tcp", &tl_io_tcp_vtable},
   {NULL, NULL}
 };
+
+void tlio_logf(tlio_logger *logger, int fd, const char *fmt, ...)
+{
+  if (!logger)
+    return;
+  va_list ap;
+  va_start(ap, fmt);
+  int len = vsnprintf(NULL, 0, fmt, ap);
+  va_end(ap);
+  if (len < 0) {
+    logger(fd, "Error while formatting log message!");
+  } else if (len > 0) {
+    char buf[len+1];
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    logger(fd, buf);
+  }
+}
 
 static fd_overlay_t *overlay;
 static size_t overlay_size;
@@ -118,32 +139,55 @@ static int release_overlay(int fd)
   return 0;
 }
 
-int tlopen(const char *url, int flags)
+int tlopen(const char *url, int flags, tlio_logger *logger)
 {
-  // parse protocol, location, and path
-  size_t proto_delim = 0; // number of characters of proto, or offset of ':'
-  size_t loc_delim = 0; // location of '/' at end of location
-  for (; url[proto_delim] != ':'; ++proto_delim) {
-    if (url[proto_delim] == '\0') {
-      // url ended without ':'
+  // In general, urls are of the form proto://location/routing,
+  // but serial ports can optionally be given by the path of the
+  // serial port. Here we cheat a little to keep it simple and
+  // force the path to be of the form /dev/port_file[:speed]/routing.
+  // That won't work for character devices in arbitrary places,
+  // in which case this needs to be made a little more sophisticated.
+  const char *proto_name = "serial";
+  size_t proto_len = 6;
+  const char *location_start = url + 5;
+
+  if (url[0] == '/') {
+    // Special syntax for serial communication
+    if (strncmp(url, "/dev/", 5) != 0) {
       errno = EINVAL;
       return -1;
     }
+    // else the default values above are initialized correctly
+  } else {
+    // Regular URL
+    for (proto_len = 0; url[proto_len] != ':'; ++proto_len) {
+      if (url[proto_len] == '\0') {
+        // url ended without ':'
+        errno = EINVAL;
+        return -1;
+      }
+    }
+
+    if ((url[proto_len + 1] != '/') || (url[proto_len + 2] != '/')) {
+      errno = EINVAL;
+      return -1;
+    }
+
+    proto_name = url;
+    location_start = url + proto_len + 3;
   }
 
-  if ((url[proto_delim + 1] != '/') || (url[proto_delim + 2] != '/')) {
-    errno = EINVAL;
-    return -1;
-  }
-
-  for (loc_delim = proto_delim + 3; (url[loc_delim] != '/') &&
-         (url[loc_delim] != '\0'); ++loc_delim) {
-  }
+  // Find the end of the location.
+  size_t location_len = 0; // location of '/' or '\0' at end of location_start
+  while ((location_start[location_len] != '/') &&
+         (location_start[location_len] != '\0'))
+    ++location_len;
 
   // break out routing prefix, will look something like "/1/2/3/"
   const char *routing = NULL;
-  if ((url[loc_delim] == '/') && (url[loc_delim + 1] != '\0'))
-    routing = url + loc_delim;
+  if ((location_start[location_len] == '/') &&
+      (location_start[location_len + 1] != '\0'))
+    routing = location_start + location_len;
 
   uint8_t routing_prefix[TL_PACKET_MAX_ROUTING_SIZE];
   size_t routing_len = 0;
@@ -157,9 +201,8 @@ int tlopen(const char *url, int flags)
   }
 
   // break out location. will require new buffer
-  size_t location_len = loc_delim - proto_delim - 3;
   char location[location_len+1];
-  memcpy(location, url + proto_delim + 3, location_len);
+  memcpy(location, location_start, location_len);
   location[location_len] = '\0';
 
   // Open the descriptor according to the protocol
@@ -167,11 +210,11 @@ int tlopen(const char *url, int flags)
 
   for (size_t id = 0; io_vtables[id].protocol != NULL; id++) {
     size_t len = strlen(io_vtables[id].protocol);
-    if ((len == proto_delim) &&
-        (memcmp(url, io_vtables[id].protocol, len) == 0)) {
+    if ((len == proto_len) &&
+        (memcmp(proto_name, io_vtables[id].protocol, len) == 0)) {
       // we found the protocol
       io_vtable *vt = io_vtables[id].vtable;
-      int fd = vt->io_open(location, flags);
+      int fd = vt->io_open(location, flags, logger);
       if (fd < 0)  // an error occurred, leave errno to whatever it was set to
         return -1;
       fd_overlay_t *fdo = alloc_overlay(fd);
@@ -180,6 +223,7 @@ int tlopen(const char *url, int flags)
         return -1;
       }
       fdo->vtable_id = id;
+      fdo->logger = logger;
       if (vt->io_fdopen(fdo, fd) < 0) {
         release_overlay(fd);
         close(fd);
@@ -195,7 +239,8 @@ int tlopen(const char *url, int flags)
   return -1;
 }
 
-int tlfdopen(int fd, const char *protocol, const char *routing)
+int tlfdopen(int fd, const char *protocol, const char *routing,
+             tlio_logger *logger)
 {
   uint8_t routing_prefix[TL_PACKET_MAX_ROUTING_SIZE];
   size_t routing_len = 0;
@@ -222,6 +267,7 @@ int tlfdopen(int fd, const char *protocol, const char *routing)
         return -1;
       }
       fdo->vtable_id = id;
+      fdo->logger = logger;
       if (vt->io_fdopen(fdo, fd) < 0) {
         release_overlay(fd);
         return -1;
@@ -246,7 +292,7 @@ int tlclose(int fd)
   io_vtable *vt = io_vtables[fdo->vtable_id].vtable;
 
   errno = 0;
-  int closeme = vt->io_close(fdo->state, fd);
+  int closeme = vt->io_close(fdo, fd);
 
   release_overlay(fd);
   if (closeme >= 0)
@@ -295,7 +341,7 @@ int tlsend(int fd, const void *_packet)
     ((tl_packet_header*)packet)->routing_size += fdo->routing_size;
   }
 
-  int ret = vt->io_send(fdo->state, fd, packet, tl_packet_total_size(packet));
+  int ret = vt->io_send(fdo, fd, packet, tl_packet_total_size(packet));
 
   if (ret < 0)
     return -1;
@@ -318,7 +364,7 @@ int tlrecv(int fd, void *packet, size_t bufsize)
   io_vtable *vt = io_vtables[fdo->vtable_id].vtable;
 
   for (;;) {
-    int ret = vt->io_recv(fdo->state, fd, packet, bufsize);
+    int ret = vt->io_recv(fdo, fd, packet, bufsize);
     if (ret < 0)
       return -1;
     if (fdo->routing_size) {

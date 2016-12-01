@@ -18,8 +18,15 @@
 extern "C" {
 #endif
 
+// Function signature used for logging (optional). When opening a descriptor,
+// a logger can be associated with it, and it will be called with detailed
+// error strings. Note: if an error occurs before obtaining a descriptor,
+// fd will be -1.
+typedef void tlio_logger(int fd, const char *message);
+
 // Open a descriptor to communicate with a sensor. Flags are restricted to
 // O_NONBLOCK and O_CLOEXEC, and sensors are always opened for read/write.
+// logger can be NULL to suppress error messages.
 // Returns a valid descriptor (>=0) on success, otherwise -1 and errno is set.
 // The descriptor returned is a valid system descriptor, and can be used for
 // polling and other reasons (e.g. setting/clearing nonblocking I/O flag).
@@ -34,16 +41,20 @@ extern "C" {
 // The 'serial' protocol communicates to a sensor connected via the serial
 // port, and its location is 'port_name:bitrate', for example
 //    serial://ttyUSB0:115200/1/
+// NOTE: to simplify tab completion and commands, since there is no ambiguity
+// the serial protocol also accepts direct device paths, optionally followed
+// by bitrate and subpath, e.g. /dev/ttyUSB0:115200/1/
 //
 // The 'tcp' protocol communicates via TCP/IP and location is an address:port,
 //    tcp://host.twinleaf.com:12345/
 //
-int tlopen(const char *url, int flags);
+int tlopen(const char *url, int flags, tlio_logger *logger);
 
 // Use a descriptor already opened for I/O with a twinleaf sensor. Note that
 // you still need to specify a valid protocol as in tlopen(). Returns fd, or -1
 // in case of error.
-int tlfdopen(int fd, const char *protocol, const char *routing);
+int tlfdopen(int fd, const char *protocol, const char *routing,
+             tlio_logger *logger);
 
 // Close a descriptor opened with tlopen/tlfdopen. Calls close() after
 // libtwinleaf specific cleanup. Returns 0 on success, -1 on failure

@@ -43,8 +43,14 @@ typedef struct tl_packet_header tl_packet_header;
   (TL_PACKET_MAX_SIZE - sizeof(tl_packet_header) - TL_PACKET_MAX_ROUTING_SIZE)
 
 struct tl_packet {
+  // Packet header
   tl_packet_header hdr;
-  uint8_t payload[TL_PACKET_MAX_PAYLOAD_SIZE + TL_PACKET_MAX_ROUTING_SIZE];
+  // Payload
+  uint8_t payload[TL_PACKET_MAX_PAYLOAD_SIZE];
+  // Reserved space for routing. Note: use tl_packet_routing_data() to get
+  // a pointer to the routing data, since it will be at the end of the payload
+  // and not at a fixed offset.
+  uint8_t __routing_reserved[TL_PACKET_MAX_ROUTING_SIZE];
 };
 typedef struct tl_packet tl_packet;
 
@@ -55,8 +61,7 @@ typedef struct tl_packet tl_packet;
 #define TL_PTYPE_RPC_REP     3 // RPC reply
 #define TL_PTYPE_RPC_ERROR   4 // RPC error
 #define TL_PTYPE_STREAMDESC  5 // Description of data in a stream
-#define TL_PTYPE_DISCOVER    6 // Node discovery of sensor tree
-#define TL_PTYPE_USER        7
+#define TL_PTYPE_USER        6
 
 #define TL_PTYPE_STREAM0   128 // First data stream
 #define TL_PTYPE_STREAM(N) (TL_PTYPE_STREAM0 + (N))
@@ -76,10 +81,14 @@ static inline int tl_packet_stream_id(const tl_packet_header *pkt);
 
 // Parse a null terminated string of the form "/3/1/" into a binary routing
 // encoding (which can be written directly to the routing data of a packet).
-// Leading and trailing '/' optional. routing_prefix must point to at least
+// Leading and trailing '/' optional. routing must point to at least
 // TL_PACKET_MAX_ROUTING_SIZE bytes. Returns the number of hops that were
 // parsed, or -1 in case of failure.
-int tl_parse_routing(uint8_t *routing_prefix, const char *routing_path);
+int tl_parse_routing(uint8_t *routing, const char *routing_path);
+
+#define TL_ROUTING_FMT_BUF_SIZE (TL_PACKET_MAX_ROUTING_SIZE * 4 + 2)
+int tl_format_routing(uint8_t *routing, size_t routing_size,
+                      char *buf, size_t buf_size);
 
 //////////////////////////////////////
 // Implementation of inline methods

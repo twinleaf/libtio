@@ -18,18 +18,35 @@
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <signal.h>
 #include <poll.h>
 #include <sysexits.h>
 
-#define CLIENT_MODE_FORWARD 0
-#define CLIENT_MODE_SHARED  1
+#if defined (__linux__)
+// For some reason, at least on some linux systems there is no declaration
+// of ppoll, even defining _GNU_SOURCE. Provide it here, since having it
+// twice should not hurt.
+int ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *tmo_p,
+          const sigset_t *sigmask);
+#endif
 
-int client_mode = CLIENT_MODE_FORWARD;
+#define CLIENT_MODE_SHARED  0
+#define CLIENT_MODE_FORWARD 1
+
+int client_mode = CLIENT_MODE_SHARED;
 
 #define SENSOR_MODE_DIRECT  0
 #define SENSOR_MODE_HUB     1
 
 int sensor_mode = SENSOR_MODE_DIRECT;
+
+volatile sig_atomic_t keep_running = 1;
+
+void terminate_loop_on_signal(int sig)
+{
+  (void) sig;
+  keep_running = 0;
+}
 
 const char *service_port = "7855"; // 0x1EAF
 
@@ -65,10 +82,10 @@ int usage(FILE *out, const char *program, const char *error)
 {
   if (error)
     fprintf(out, "%s\n", error);
-  fprintf(out, "Usage: %s [-p port] [-s [-c max_clients] [-r max_rpc]] "
-          "[-h [-i hub_id]]\n", program);
+  fprintf(out, "Usage: %s [-p port] [-f] [-c max_clients] [-r max_rpc] "
+          "[-h [-i hub_id]] sensor_url [sensor_url ...]\n", program);
   fprintf(out, "  -p port   TPC listen port. default 7855\n");
-  fprintf(out, "  -s        shared client mode\n");
+  fprintf(out, "  -f        client forward mode\n");
   fprintf(out, "  -c max    max simultaneous clients in shared mode, "
           "default 4\n");
   fprintf(out, "  -r max    max number of RPCs in flight in shared mode, "
@@ -87,7 +104,7 @@ int error(const char *fmt, ...)
   va_end(ap);
   fprintf(stderr, "%s", msg);
   fprintf(stderr, errno ? ": %s\n" : "\n", strerror(errno));
-  return 1;
+  return EXIT_FAILURE;
 }
 
 void logmsg(const char *fmt, ...)
@@ -104,6 +121,12 @@ void logmsg(const char *fmt, ...)
   vprintf(fmt, ap);
   va_end(ap);
   putchar('\n');
+}
+
+void io_log(int fd, const char *message)
+{
+  // Send messages from the IO layer to log
+  logmsg("IO fd #%d message: %s", fd, message);
 }
 
 void init_remap_struct(rpc_remap *remap, rpc_remap *prev, rpc_remap *next)
@@ -272,20 +295,15 @@ int hub_packet(size_t ps, tl_packet *packet)
         len = TL_RPC_REPLY_MAX_PAYLOAD_SIZE;
       memcpy(rep->payload, hub_id, len);
       rep->hdr.payload_size += len;
+    } else if (METHOD("port.enum")) {
+      tl_rpc_reply_packet *rep = tl_rpc_make_reply(req);
+      for (size_t i = 0; i < n_sensors; i++)
+        rep->payload[i] = i + 1;
+      rep->hdr.payload_size += n_sensors;
     } else {
 #undef METHOD
       tl_rpc_make_error(req, TL_RPC_ERROR_NOTFOUND);
     }
-    if (send_packet(ps, packet) < 0)
-      return ERROR_LOCAL;
-  } else if (packet->hdr.type == TL_PTYPE_DISCOVER) {
-    for (size_t i = 0; i < n_sensors; i++) {
-      if (send_packet(i, packet) < 0)
-        return ERROR_CRITICAL;
-    }
-    size_t len = strlen(hub_name);
-    memcpy(packet->payload, hub_name, len);
-    packet->hdr.payload_size += len;
     if (send_packet(ps, packet) < 0)
       return ERROR_LOCAL;
   } else {
@@ -340,7 +358,11 @@ int sensor_data(size_t ps, tl_packet *packet)
 
   if (packet->hdr.type == TL_PTYPE_LOG) {
     tl_log_packet *logp = (tl_log_packet*) packet;
-    char path[] = "/TODO";
+    char path[TL_ROUTING_FMT_BUF_SIZE];
+    if (tl_format_routing(tl_packet_routing_data(&packet->hdr),
+                          packet->hdr.routing_size,
+                          path, sizeof(path)) != 0)
+      strcpy(path, "<INVALID PATH>");
     size_t len = tl_log_packet_message_size(logp);
     char fmt[128];
     snprintf(fmt, sizeof(fmt), "Log (%%s) from sensor '%%s': %%.%zds", len);
@@ -424,7 +446,7 @@ int client_data(size_t ps, tl_packet *packet)
     return SUCCESS;
   }
 
-  int ret = tlsend(poll_array[dest].fd, packet);
+  int ret = send_packet(dest, packet);
   if (ret < 0) {
     logmsg("Error writing to sensor %zd: %s", dest, strerror(errno));
     return ERROR_CRITICAL;
@@ -507,7 +529,7 @@ int client_connection(size_t ps)
       continue;
     }
 
-    int tlfd = tlfdopen(client_fd, "tcp", NULL);
+    int tlfd = tlfdopen(client_fd, "tcp", NULL, &io_log);
     if (tlfd < 0) {
       logmsg("Failed to open new client (%s:%s) in libtwinleaf: %s",
              host, port, strerror(errno));
@@ -519,14 +541,14 @@ int client_connection(size_t ps)
     if (n_descriptors >= max_descriptors) {
       logmsg("Accepting client (%s:%s) will exceed maximum number of clients",
              host, port);
-      // TODO: send packet explaining the reason
       tlclose(tlfd);
       continue;
     }
 
     poll_array[n_descriptors].fd = tlfd;
     poll_array[n_descriptors].events = POLLIN;
-    init_remap_struct(&client_list[n_descriptors], NULL, NULL);
+    if (client_list)
+      init_remap_struct(&client_list[n_descriptors], NULL, NULL);
     n_descriptors++;
 
     logmsg("Accepted client #%d: %s:%s", tlfd, host, port);
@@ -538,9 +560,9 @@ int main(int argc, char *argv[])
   size_t max_clients = 4;
   errno = 0;
 
-  for (int opt = -1; (opt = getopt(argc, argv, "shp:c:r:i:")) != -1; ) {
-    if (opt == 's') {
-      client_mode = CLIENT_MODE_SHARED;
+  for (int opt = -1; (opt = getopt(argc, argv, "fhp:c:r:i:")) != -1; ) {
+    if (opt == 'f') {
+      client_mode = CLIENT_MODE_FORWARD;
     } else if (opt == 'h') {
       sensor_mode = SENSOR_MODE_HUB;
     } else if (opt == 'p') {
@@ -572,8 +594,8 @@ int main(int argc, char *argv[])
   if ((sensor_mode == SENSOR_MODE_DIRECT) && (n_sensors != 1))
     return usage(stderr, argv[0], "Only one sensor allowed in direct mode");
 
-  if (n_sensors > 256)
-    return usage(stderr, argv[0], "Exceeded protocol limit of 256 sensors");
+  if (n_sensors > 255)
+    return usage(stderr, argv[0], "Exceeded protocol limit of 255 sensors");
 
   // assign a default ID to a hub
   if ((sensor_mode == SENSOR_MODE_HUB) && (hub_id[0] == '\0')) {
@@ -612,7 +634,7 @@ int main(int argc, char *argv[])
   // Connect to all sensors
   for (n_descriptors = 0; n_descriptors < n_sensors; n_descriptors++) {
     const char *url = argv[optind + n_descriptors];
-    poll_array[n_descriptors].fd = tlopen(url, O_NONBLOCK | O_CLOEXEC);
+    poll_array[n_descriptors].fd = tlopen(url, O_NONBLOCK|O_CLOEXEC, &io_log);
     poll_array[n_descriptors].events = POLLIN;
     if (poll_array[n_descriptors].fd < 0)
       return error("Failed to open sensor '%s'", url);
@@ -641,9 +663,28 @@ int main(int argc, char *argv[])
   logmsg("Initialized. %zd sockets listening, %zd sensors, %zd max clients",
          n_listen, n_sensors, max_clients);
 
-  // Main loop TODO: exit cleanly with signal
+  // Set up signal handling. SIGINT is used to quit, and is only delivered
+  // when waiting in ppoll
+  sigset_t sigmask;
+  sigemptyset(&sigmask);
+  sigaddset(&sigmask, SIGINT);
+  if (sigprocmask(SIG_BLOCK, &sigmask, NULL) == -1)
+    return error("Failed to block SIGINT");
+
+  {
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = terminate_loop_on_signal;
+    sigemptyset(&sa.sa_mask);
+    if (sigaction(SIGINT, &sa, NULL) == -1)
+      return error("Failed to install SIGINT handler");
+  }
+
+  sigemptyset(&sigmask);
+
+  // Main loop
   int ret = 0;
-  for (;;) {
+  while (keep_running) {
     if (disconnected_clients_flag) {
       // At leat one client was disconnected during the last iteration.
       // Re-compact poll_array.
@@ -662,16 +703,37 @@ int main(int argc, char *argv[])
       }
     }
 
-    int n_events = poll(poll_array, n_descriptors, 1000);
-    if (n_events < 0)
-      return error("poll failed");
+    struct timespec timeout = { .tv_sec = 1, .tv_nsec = 0 };
+    int n_events = ppoll(poll_array, n_descriptors, &timeout, &sigmask);
+    if (n_events < 0) {
+      if (errno != EINTR) {
+        keep_running = 0;
+        ret = error("poll failed");
+      }
+      continue;
+    }
 
     // See if there are remapped RPCs that have had no reply for a while,
     // and free up the spots for new RPCs.
     if (client_mode == CLIENT_MODE_SHARED) {
       for (rpc_remap *remap = NULL; (remap = get_timedout(time(NULL)));) {
-        // TODO: send a courtesy error to the client, better logging
-        logmsg("RPC remap timeout");
+        int client_fd = -1;
+        if (remap->client_desc >= 0) {
+          // The client is still connected. Send a timeout error back.
+          client_fd = poll_array[remap->client_desc].fd;
+          if (client_fd >= 0) {
+            tl_rpc_request_packet req;
+            req.req.id = remap->orig_id;
+            tl_rpc_error_packet *err =
+              tl_rpc_make_error(&req, TL_RPC_ERROR_TIMEOUT);
+            if (send_packet(remap->client_desc, (tl_packet*)err) < 0) {
+              logmsg("Failed to send synthetic RPC timeout error");
+              disconnect_client(remap->client_desc);
+            }
+          }
+        }
+        logmsg("RPC remap timeout: client #%d RPC #%d", client_fd,
+               remap->orig_id);
         insert_after(&remap_array[0], remove_next(remap->prev, 1));
       }
     }
@@ -686,16 +748,25 @@ int main(int argc, char *argv[])
         continue;
 
       if (ps < n_sensors) {
-        // Errors on a sensor's descriptor will make us quit
+        // Event on sensor's descriptor
         if (handle_tlio(ps) != SUCCESS) {
-          logmsg("Fatal error in sensor communication");
-          ret = 1;
+          if (errno == EPROTO) {
+            // Error in the data. could be corrupted serial data,
+            // keep running
+            logmsg("Error in sensor communication");
+          } else {
+            // Some other error, e.g. the serial port went down. Exit.
+            logmsg("Fatal error in sensor communication");
+            keep_running = 0;
+            ret = 1;
+          }
           break;
         }
       } else if (ps < (n_sensors + n_listen)) {
         // Event on listening sockets
         if (client_connection(ps) != SUCCESS) {
-          logmsg("Fatal error in listening sockets");
+          logmsg("Fatal error on listening sockets");
+          keep_running = 0;
           ret = 1;
           break;
         }
@@ -706,6 +777,7 @@ int main(int argc, char *argv[])
         if (poll_array[ps].fd >= 0) {
           int ret = handle_tlio(ps);
           if (ret == ERROR_CRITICAL) {
+            keep_running = 0;
             ret = 1;
             break;
           } else if (ret != SUCCESS) {
@@ -716,7 +788,34 @@ int main(int argc, char *argv[])
     }
   }
 
-  // TODO: cleanup
+  logmsg("Attempting clean termination of I/O descriptors");
 
-  return ret;
+  // Give it about a second.
+  for (int n = 0; n < 20; n++, usleep(50000)) {
+    size_t left = 0;
+    for (size_t i = 0; i < n_descriptors; i++) {
+      if (poll_array[i].fd >= 0) {
+        if ((i >= n_sensors) && (i < (n_sensors + n_listen))) {
+          // this was a listening socket, just close it.
+          close(poll_array[i].fd);
+          poll_array[i].fd = -1;
+        }
+      } else {
+        // this was a TLIO descriptor. try to flush any remaining data
+        if ((tlsend(poll_array[i].fd, NULL) == 0) || (errno != EOVERFLOW)) {
+          if (tlclose(poll_array[i].fd) != 0)
+            close(poll_array[i].fd);
+          poll_array[i].fd = -1;
+        } else {
+          left++;
+        }
+      }
+    }
+    if (left == 0) {
+      logmsg("Exiting.");
+      return ret;
+    }
+  }
+
+  return error("Unable to close all descriptors. Exit is not clean.");
 }

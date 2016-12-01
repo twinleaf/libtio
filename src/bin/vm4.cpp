@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  int fd = tlopen(argv[1], 0);
+  int fd = tlopen(argv[1], 0, NULL);
   if (fd < 0) {
     fprintf(stderr, "Failed to open %s: %s\n", argv[1], strerror(errno));
     return 1;

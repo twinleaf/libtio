@@ -3,7 +3,7 @@
 // License: Proprietary
 
 #include <twinleaf/packet.h>
-#include "io_vtable.h"
+#include "io_internal.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -32,7 +32,7 @@ struct tcp_state {
 };
 typedef struct tcp_state tcp_state;
 
-static int io_tcp_open(const char *location, int flags)
+static int io_tcp_open(const char *location, int flags, tlio_logger *logger)
 {
   ssize_t separator = -1;
   // break out name and service
@@ -54,13 +54,18 @@ static int io_tcp_open(const char *location, int flags)
   ai.ai_socktype = SOCK_STREAM;
   ai.ai_protocol = IPPROTO_TCP;
   struct addrinfo *result;
-  if (getaddrinfo(name, service, &ai, &result) != 0) {
-    // TODO: write out error
-    return -1;
+  {
+    int ret = getaddrinfo(name, service, &ai, &result);
+    if (ret != 0) {
+      tlio_logf(logger, -1, "io_tcp: Failed to resolve '%s': %s [%s]",
+                location, gai_strerror(ret), strerror(errno));
+      return -1;
+    }
+    if (!result) {
+      tlio_logf(logger, -1, "io_tcp: No results resolving '%s'", location);
+      return -1;
+    }
   }
-  if (!result)
-    return -1;
-  // TODO: deal with multiple resolutions??
 
   // To simplify error handling, copy relevant information on the stack and
   // free the result list memory.
@@ -117,18 +122,18 @@ static int io_tcp_fdopen(fd_overlay_t *fdo, int fd)
   return fd;
 }
 
-static int io_tcp_close(void *_state, int fd)
+static int io_tcp_close(fd_overlay_t *fdo, int fd)
 {
-  tcp_state *state = (tcp_state*) _state;
+  tcp_state *state = (tcp_state*) fdo->state;
   free(state);
 
   return fd;
 }
 
-static int io_tcp_recv(void *_state, int fd, void *packet_buffer,
+static int io_tcp_recv(fd_overlay_t *fdo, int fd, void *packet_buffer,
                        size_t bufsize)
 {
-  tcp_state *state = (tcp_state*) _state;
+  tcp_state *state = (tcp_state*) fdo->state;
 
   while (state->in_buf < sizeof(tl_packet_header)) {
     // must read up a full packet header to know how much

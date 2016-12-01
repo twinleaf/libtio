@@ -110,7 +110,33 @@ int tl_simple_rpc(int fd, const char *method, uint16_t req_id,
       tl_rpc_error_packet *err = (tl_rpc_error_packet*) rep;
       if (err->err.req_id == req_id) {
         // there was an error with this callback
-        // TODO: translate RPC errors to errno?
+        // set errno to a sensible value
+        switch (err->err.code) {
+         case TL_RPC_ERROR_NOTFOUND:
+          errno = ENOSYS;
+          break;
+         case TL_RPC_ERROR_MALFORMED:
+          errno = EPROTO;
+          break;
+         case TL_RPC_ERROR_ARGS_SIZE:
+         case TL_RPC_ERROR_ARGS_VAL:
+          errno = EINVAL;
+          break;
+         case TL_RPC_ERROR_READ_ONLY:
+         case TL_RPC_ERROR_WRITE_ONLY:
+          errno = EPERM;
+          break;
+         case TL_RPC_ERROR_BUSY:
+          errno = EBUSY;
+          break;
+         case TL_RPC_ERROR_SAVE:
+         case TL_RPC_ERROR_LOAD:
+          errno = EIO;
+          break;
+         default:
+          errno = EBADE;
+          break;
+        }
         return err->err.code;
       }
     }

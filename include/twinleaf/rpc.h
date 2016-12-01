@@ -20,11 +20,11 @@ typedef struct tl_rpc_request_header tl_rpc_request_header;
 #define TL_RPC_REQUEST_MAX_PAYLOAD_SIZE \
   (TL_PACKET_MAX_PAYLOAD_SIZE - sizeof(tl_rpc_request_header))
 
-// TODO: can we just have payload without the routing size???
 struct tl_rpc_request_packet {
   tl_packet_header      hdr;
   tl_rpc_request_header req;
-  uint8_t payload[TL_RPC_REQUEST_MAX_PAYLOAD_SIZE + TL_PACKET_MAX_ROUTING_SIZE];
+  uint8_t payload[TL_RPC_REQUEST_MAX_PAYLOAD_SIZE];
+  uint8_t __routing_reserved[TL_PACKET_MAX_ROUTING_SIZE];
 
 #ifdef __cplusplus
   template<typename T> inline T *payload_start();
@@ -52,7 +52,8 @@ typedef struct tl_rpc_reply_header tl_rpc_reply_header;
 struct tl_rpc_reply_packet {
   tl_packet_header      hdr;
   tl_rpc_reply_header   rep;
-  uint8_t payload[TL_RPC_REPLY_MAX_PAYLOAD_SIZE + TL_PACKET_MAX_ROUTING_SIZE];
+  uint8_t payload[TL_RPC_REPLY_MAX_PAYLOAD_SIZE];
+  uint8_t __routing_reserved[TL_PACKET_MAX_ROUTING_SIZE];
 
 #ifdef __cplusplus
   template<typename T> inline T *payload_start();
@@ -94,7 +95,8 @@ typedef struct tl_rpc_error_header tl_rpc_error_header;
 struct tl_rpc_error_packet {
   tl_packet_header      hdr;
   tl_rpc_error_header   err;
-  uint8_t payload[TL_RPC_ERROR_MAX_PAYLOAD_SIZE + TL_PACKET_MAX_ROUTING_SIZE];
+  uint8_t payload[TL_RPC_ERROR_MAX_PAYLOAD_SIZE];
+  uint8_t __routing_reserved[TL_PACKET_MAX_ROUTING_SIZE];
 
 #ifdef __cplusplus
   template<typename T> inline T *payload_start();

@@ -2,21 +2,31 @@
 // Author: gilberto@tersatech.com
 // License: Proprietary
 
+// Internal I/O declarations.
+// Convenient logging method.
+// Overlay struct, containing additional information that we need to associate
+// with each tracked descriptor.
 // Vtable for sensor I/O. Implementing I/O for a different protocol
 // requires exporting a vtable for it (e.g see io_serial.c), and linking
 // to it from io.c's vtable directory.
 
-#ifndef TL_IO_VTABLE_H
-#define TL_IO_VTABLE_H
+#ifndef TL_IO_INTERNAL_H
+#define TL_IO_INTERNAL_H
 
-#include <twinleaf/packet.h>
+#include <twinleaf/io.h>
 #include <stddef.h>
+
+void tlio_logf(tlio_logger *logger, int fd, const char *fmt, ...)
+  __attribute__((format(printf, 3, 4)));;
 
 // Structure associated with descriptors registered with the I/O API,
 // which specifies a vtable and a protocol-dependent state.
 struct fd_overlay_t {
   size_t vtable_id;
   void *state;
+
+  const char *url; // Url associated with this descriptor
+  tlio_logger *logger; // Logger (optional)
 
   // Routing prefix that restricts the I/O to a specific
   // subtree of the sensor topology.
@@ -40,7 +50,7 @@ typedef struct fd_overlay_t fd_overlay_t;
 
 // This function opens a descriptor to the desired location and returns it.
 // In case of failure, return -1 and set errno.
-typedef int io_open_t(const char *location, int flags);
+typedef int io_open_t(const char *location, int flags, tlio_logger *logger);
 
 // Register an already opened descriptor with the I/O API. Return fd on
 // success, -1 on failure. This function must allocate and initialize any
@@ -53,14 +63,14 @@ typedef int io_fdopen_t(fd_overlay_t *fdo, int fd);
 // In case of error, set errno != 0, but still use the same return values.
 // Must clear out write_buf if non-null, after possibly attempting to
 // send it without blocking.
-typedef int io_close_t(void *state, int fd);
+typedef int io_close_t(fd_overlay_t *fdo, int fd);
 
 // Receive a valid packet in packet_buffer. Return 0 on success, -1 on
 // failure with errno
 // = ENOMEM if the packet size exceeds the buffer size
 // = EPROTO for protocol errors.
 // = E???? errors from failed calls specific to the IO method.
-typedef int io_recv_t(void *state, int fd, void *packet_buffer,
+typedef int io_recv_t(fd_overlay_t *fdo, int fd, void *packet_buffer,
                       size_t bufsize);
 
 // Send a packet. Returns 0 in case of success, -1 in case of failure. If the
@@ -89,4 +99,4 @@ struct io_vtable {
 };
 typedef struct io_vtable io_vtable;
 
-#endif // TL_IO_VTABLE_H
+#endif // TL_IO_INTERNAL_H

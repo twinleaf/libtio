@@ -3,7 +3,7 @@
 // License: Proprietary
 
 #include <twinleaf/packet.h>
-#include "io_vtable.h"
+#include "io_internal.h"
 #include "serial.h"
 
 #include <stdlib.h>
@@ -37,8 +37,9 @@ struct serial_state {
 };
 typedef struct serial_state serial_state;
 
-static int io_serial_open(const char *location, int flags)
+static int io_serial_open(const char *location, int flags, tlio_logger *logger)
 {
+  (void) logger;
   size_t port_len = 0;
   uint32_t bitrate = DEFAULT_BITRATE;
 
@@ -180,9 +181,9 @@ static int io_serial_fdopen(fd_overlay_t *fdo, int fd)
   return -1;
 }
 
-static int io_serial_close(void *_state, int fd)
+static int io_serial_close(fd_overlay_t *fdo, int fd)
 {
-  serial_state *state = (serial_state*) _state;
+  serial_state *state = (serial_state*) fdo->state;
   free(state->buf);
   tl_serial_destroy_deserializer(state->des);
   free(state);
@@ -190,10 +191,16 @@ static int io_serial_close(void *_state, int fd)
   return fd;
 }
 
-static int io_serial_recv(void *_state, int fd, void *packet_buffer,
+static inline char hexdigit(int n)
+{
+  n &= 0xF;
+  return (n < 10) ? (n + '0') : (n - 10 + 'a');
+}
+
+static int io_serial_recv(fd_overlay_t *fdo, int fd, void *packet_buffer,
                           size_t bufsize)
 {
-  serial_state *state = (serial_state*) _state;
+  serial_state *state = (serial_state*) fdo->state;
   for (;;) {
     if (state->start == state->end) {
       // out of data in the buffer, refill buffer and process data
@@ -228,7 +235,36 @@ static int io_serial_recv(void *_state, int fd, void *packet_buffer,
           continue;
 
       if (ret.error || (ret.size > TL_PACKET_MAX_SIZE)) {
-        // error. TODO: debug options to write out error in more detail??
+        if (ret.error & TL_SERIAL_ERROR_SHORT)
+          tlio_logf(fdo->logger, fd, "io_serial: short packet");
+        if (ret.error & TL_SERIAL_ERROR_DANGLING_ESC)
+          tlio_logf(fdo->logger, fd, "io_serial: dangling SLIP escape");
+        if (ret.error & TL_SERIAL_ERROR_ESC_CODE)
+          tlio_logf(fdo->logger, fd, "io_serial: invalid SLIP escape code");
+        if (ret.error & TL_SERIAL_ERROR_CRC)
+          tlio_logf(fdo->logger, fd, "io_serial: CRC failed");
+        if ((ret.error & TL_SERIAL_ERROR_TOOBIG) ||
+            (ret.size > TL_PACKET_MAX_SIZE)) {
+          // We give a buffer big enough for the largest valid packet
+          tlio_logf(fdo->logger, fd, "io_serial: packet size bigger than "
+                    "allowed by protocol");
+        }
+
+        if (ret.data && ret.error && fdo->logger) {
+          // To better identify what happened, do a hexdump of the partial
+          // data returned by the deserializer.
+          // for each character, 2 hex digits + space/newline
+          char hexdump[ret.size*3+1];
+          for (size_t i = 0; i < ret.size; i++) {
+            hexdump[i*3+0] = hexdigit(ret.data[i] >> 4);
+            hexdump[i*3+1] = hexdigit(ret.data[i] & 0x0F);
+            hexdump[i*3+2] = (((i & 0xF) == 0xF) || (i == (ret.size - 1))) ?
+              '\n' : ' ';
+            hexdump[i*3+3] = '\0';
+          }
+          tlio_logf(fdo->logger, fd, "Error when receiving serial data:\n"
+                    "BEGIN HEX DUMP\n%sEND HEX DUMP", hexdump);
+        }
         errno = EPROTO;
         return -1;
       }

@@ -29,6 +29,7 @@ struct tl_log_packet {
   tl_packet_header hdr;
   tl_log_header    log;
   char message[TL_LOG_MAX_MESSAGE_SIZE];
+  uint8_t __routing_reserved[TL_PACKET_MAX_ROUTING_SIZE];
 } __attribute__((__packed__));
 typedef struct tl_log_packet tl_log_packet;
 
