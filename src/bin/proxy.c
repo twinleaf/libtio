@@ -28,6 +28,26 @@
 // twice should not hurt.
 int ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *tmo_p,
           const sigset_t *sigmask);
+#elif defined(__APPLE__)
+// Apple does not provide ppoll. For this specific use, it is ok to
+// have the signal masking race condition, so we do a straightforward
+// implementation (with race). Since we timeout every second, the
+// worst case scenario is that there is a one second lag between
+// receiving SIGINT and exiting the main loop
+static int ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *tmo_p,
+                 const sigset_t *sigmask)
+{
+  unsigned msec = tmo_p->tv_sec * 1000 + (tmo_p->tv_nsec + 999999)/1000000;
+  sigset_t restore;
+  if (sigprocmask(SIG_SETMASK, sigmask, &restore) != 0)
+    return -1;
+  int ret = poll(fds, nfds, msec);
+  int errno_ret = errno;
+  if (sigprocmask(SIG_SETMASK, &restore, NULL) != 0)
+    return -1;
+  errno = errno_ret;
+  return ret;
+}
 #endif
 
 #define CLIENT_MODE_SHARED  0
