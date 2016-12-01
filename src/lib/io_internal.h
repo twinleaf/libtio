@@ -16,8 +16,17 @@
 #include <twinleaf/io.h>
 #include <stddef.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Write formatted message to a logger. Nop if logger == NULL
 void tlio_logf(tlio_logger *logger, int fd, const char *fmt, ...)
   __attribute__((format(printf, 3, 4)));;
+
+#ifdef __cplusplus
+}
+#endif
 
 // Structure associated with descriptors registered with the I/O API,
 // which specifies a vtable and a protocol-dependent state.

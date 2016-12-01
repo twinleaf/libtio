@@ -134,7 +134,7 @@ int tl_simple_rpc(int fd, const char *method, uint16_t req_id,
           errno = EIO;
           break;
          default:
-          errno = EBADE;
+          errno = ENOENT;
           break;
         }
         return err->err.code;
