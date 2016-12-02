@@ -4,7 +4,7 @@
 
 #include <twinleaf/packet.h>
 #include "io_internal.h"
-#include "serial.h"
+#include "serial_proto.h"
 
 #include <stdlib.h>
 #include <string.h>

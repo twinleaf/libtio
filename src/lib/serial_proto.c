@@ -2,7 +2,7 @@
 // Author: gilberto@tersatech.com
 // License: Proprietary
 
-#include "serial.h"
+#include "serial_proto.h"
 #include <stdlib.h>
 #include <string.h>
 
