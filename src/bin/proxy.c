@@ -123,7 +123,10 @@ int error(const char *fmt, ...)
   vsnprintf(msg, sizeof(msg), fmt, ap);
   va_end(ap);
   fprintf(stderr, "%s", msg);
-  fprintf(stderr, errno ? ": %s\n" : "\n", strerror(errno));
+  if (errno)
+    fprintf(stderr, ": %s\n", strerror(errno));
+  else
+    fprintf(stderr, "\n");
   return EXIT_FAILURE;
 }
 
