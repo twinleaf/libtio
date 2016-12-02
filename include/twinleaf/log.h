@@ -8,6 +8,7 @@
 #define TL_LOG_H
 
 #include <twinleaf/packet.h>
+#include <stdarg.h>
 
 typedef uint8_t tl_log_type;
 
@@ -34,6 +35,23 @@ struct tl_log_packet {
 typedef struct tl_log_packet tl_log_packet;
 
 static inline size_t tl_log_packet_message_size(const tl_log_packet *pkt);
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// snprintf-like method to format a log packet's message
+int tl_log_packet_snprintf(tl_log_packet *lp, size_t size,
+                           const char *fmt, ...)
+  __attribute__((format(printf, 3, 4)));
+
+// vsnprintf-like method to format a log packet's message
+int tl_log_packet_vsnprintf(tl_log_packet *lp, size_t size,
+                            const char *fmt, va_list ap);
+
+#ifdef __cplusplus
+}
+#endif
 
 //////////////////////////////////////
 // Implementation of inline methods
