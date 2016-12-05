@@ -26,6 +26,9 @@
 #endif
 #endif
 
+#define QUOTE(str) #str
+#define EXPAND_AND_QUOTE(str) QUOTE(str)
+
 struct tcp_state {
   uint8_t rx_buf[TL_PACKET_MAX_SIZE];
   size_t in_buf;
@@ -43,10 +46,16 @@ static int io_tcp_open(const char *location, int flags, tlio_logger *logger)
     }
   }
 
-  char name[separator+1];
-  memcpy(name, location, separator);
-  name[separator] = '\0';
-  const char *service = location+separator+1;
+  char name_buf[((separator > 0) ? separator : 0) + 1];
+  const char *name = location;
+  const char *service = EXPAND_AND_QUOTE(TL_TCP_DEFAULT_PORT);
+  if (separator >= 0) {
+    // service port was given explicitly
+    memcpy(name_buf, location, separator);
+    name_buf[separator] = '\0';
+    name = name_buf;
+    service = location+separator+1;
+  }
 
   struct addrinfo ai;
   memset(&ai, 0, sizeof(ai));

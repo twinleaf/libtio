@@ -20,7 +20,6 @@
 #endif
 
 
-#define DEFAULT_BITRATE 115200
 #define MAX_FRACTIONAL_RATE_DEVIATION 0.02 // 2 percent
 #define DESERIALIZER_BUF_SIZE TL_PACKET_MAX_SIZE
 #define SERIAL_READ_BUF_SIZE 1024
@@ -41,7 +40,7 @@ static int io_serial_open(const char *location, int flags, tlio_logger *logger)
 {
   (void) logger;
   size_t port_len = 0;
-  uint32_t bitrate = DEFAULT_BITRATE;
+  uint32_t bitrate = TL_SERIAL_DEFAULT_BITRATE;
 
   // break out location
   for (; location[port_len]; port_len++) {

@@ -68,7 +68,9 @@ void terminate_loop_on_signal(int sig)
   keep_running = 0;
 }
 
-const char *service_port = "7855"; // 0x1EAF
+#define QUOTE(str) #str
+#define EXPAND_AND_QUOTE(str) QUOTE(str)
+const char *service_port = EXPAND_AND_QUOTE(TL_TCP_DEFAULT_PORT);
 
 const char *hub_name = "Twinleaf PROXY";
 char hub_id[128] = "";

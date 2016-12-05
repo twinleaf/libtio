@@ -41,12 +41,16 @@ typedef void tlio_logger(int fd, const char *message);
 // The 'serial' protocol communicates to a sensor connected via the serial
 // port, and its location is 'port_name:bitrate', for example
 //    serial://ttyUSB0:115200/1/
+// Bitrate is optional, and if omitted will default to
+#define TL_SERIAL_DEFAULT_BITRATE 115200
 // NOTE: to simplify tab completion and commands, since there is no ambiguity
 // the serial protocol also accepts direct device paths, optionally followed
 // by bitrate and subpath, e.g. /dev/ttyUSB0:115200/1/
 //
 // The 'tcp' protocol communicates via TCP/IP and location is an address:port,
 //    tcp://host.twinleaf.com:12345/
+// Port is optional, and if omitted will default to
+#define TL_TCP_DEFAULT_PORT 7855
 //
 int tlopen(const char *url, int flags, tlio_logger *logger);
 
