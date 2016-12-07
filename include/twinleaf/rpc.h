@@ -188,4 +188,60 @@ static inline size_t tl_rpc_error_payload_size(const tl_rpc_error_packet *err)
   return err->hdr.payload_size - sizeof(tl_rpc_error_header);
 }
 
+#ifdef __cplusplus
+
+template<typename T> inline T *tl_rpc_request_packet::payload_start()
+{
+  return reinterpret_cast<T*>(&payload[method_size()]);
+}
+
+template<typename T> inline const T *
+tl_rpc_request_packet::payload_start() const
+{
+  return reinterpret_cast<const T*>(&payload[method_size()]);
+}
+
+inline size_t tl_rpc_request_packet::payload_size() const
+{
+  return hdr.payload_size - sizeof(tl_rpc_request_header) - method_size();
+}
+
+inline size_t tl_rpc_request_packet::method_size() const
+{
+  return (req.method_id & TL_RPC_REQUEST_BY_NAME) ?
+    (req.method_id & TL_RPC_REQUEST_NAMELEN_MASK) : 0;
+}
+
+template<typename T> inline T *tl_rpc_reply_packet::payload_start()
+{
+  return reinterpret_cast<T*>(&payload[0]);
+}
+
+template<typename T> inline const T *tl_rpc_reply_packet::payload_start() const
+{
+  return reinterpret_cast<const T*>(&payload[0]);
+}
+
+inline size_t tl_rpc_reply_packet::payload_size() const
+{
+  return hdr.payload_size - sizeof(tl_rpc_reply_header);
+}
+
+template<typename T> inline T *tl_rpc_error_packet::payload_start()
+{
+  return reinterpret_cast<T*>(&payload[0]);
+}
+
+template<typename T> inline const T *tl_rpc_error_packet::payload_start() const
+{
+  return reinterpret_cast<const T*>(&payload[0]);
+}
+
+inline size_t tl_rpc_error_packet::payload_size() const
+{
+  return hdr.payload_size - sizeof(tl_rpc_error_header);
+}
+
+#endif
+
 #endif // TL_RPC_H

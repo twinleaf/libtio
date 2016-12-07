@@ -4,7 +4,7 @@
 
 CC = gcc
 CCFLAGS = -g -Wall -Wextra -Iinclude/ -std=gnu11
-CXXFLAGS = -g -Wall -Wextra -Iinclude/
+CXXFLAGS = -g -Wall -Wextra -Iinclude/ -std=gnu++11
 
 .DEFAULT_GOAL = all
 .SECONDARY:
@@ -38,7 +38,10 @@ bin/%: obj/bin/%.o lib/libtwinleaf.a | bin
 bin/vm4: src/bin/vm4.cpp $(BIN_HEADERS) | bin
 	@g++ -Llib $(CXXFLAGS) -o $@ $< -ltwinleaf
 
-binaries: $(BIN_BINS) bin/vm4
+bin/dstream_record: src/bin/dstream_record.cpp $(BIN_HEADERS) | bin
+	@g++ -Llib $(CXXFLAGS) -o $@ $< -ltwinleaf
+
+binaries: $(BIN_BINS) bin/vm4 bin/dstream_record
 
 all: lib/libtwinleaf.a binaries
 

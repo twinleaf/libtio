@@ -90,7 +90,6 @@ struct tl_data_stream_packet {
 } __attribute__((__packed__));
 typedef struct tl_data_stream_packet tl_data_stream_packet;
 
-
 static inline size_t tl_data_type_size(unsigned type)
 {
   return (type >> 4) & 0xF;
