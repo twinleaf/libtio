@@ -91,6 +91,8 @@ struct rpc_remap {
   int client_desc; // index of client in poll_array
   uint16_t id;
   uint16_t orig_id;
+  int routing_size; // keep routing to send out timeout messages
+  uint8_t routing[TL_PACKET_MAX_ROUTING_SIZE];
 };
 typedef struct rpc_remap rpc_remap;
 
@@ -164,6 +166,7 @@ void init_remap_struct(rpc_remap *remap, rpc_remap *prev, rpc_remap *next)
   remap->client_desc = -1;
   remap->id = 0xFFFF;
   remap->orig_id = 0xFFFF;
+  remap->routing_size = 0;
 }
 
 void init_rpc_remap()
@@ -448,7 +451,9 @@ int client_data(size_t ps, tl_packet *packet)
     remap->orig_id = req->req.id;
     req->req.id = remap->id;
     remap->client_desc = ps;
-
+    remap->routing_size = req->hdr.routing_size;
+    memcpy(remap->routing, tl_packet_routing_data(&req->hdr),
+           remap->routing_size);
     insert_after(&client_list[ps], remap);
     append_timeout(remap, time(NULL));
   }
@@ -751,6 +756,9 @@ int main(int argc, char *argv[])
             req.req.id = remap->orig_id;
             tl_rpc_error_packet *err =
               tl_rpc_make_error(&req, TL_RPC_ERROR_TIMEOUT);
+            memcpy(tl_packet_routing_data(&err->hdr), remap->routing,
+                   remap->routing_size);
+            err->hdr.routing_size += remap->routing_size;
             if (send_packet(remap->client_desc, (tl_packet*)err) < 0) {
               logmsg("Failed to send synthetic RPC timeout error");
               disconnect_client(remap->client_desc);

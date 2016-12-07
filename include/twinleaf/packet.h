@@ -75,6 +75,14 @@ static inline uint8_t *tl_packet_payload_data(tl_packet_header *pkt);
 // Return a pointer to the start of the routing data
 static inline uint8_t *tl_packet_routing_data(tl_packet_header *pkt);
 
+// Return the next hop for a packet, removing it from the routing data.
+// Returns >= 0 on success, with the hop ID, otherwise -1 and pkt unchanged.
+static inline int tl_packet_pop_hop(tl_packet_header *pkt);
+
+// Append a hop to the routing data.
+// Returns 0 on success, otherwise -1 and pkt unchanged.
+static inline int tl_packet_push_hop(tl_packet_header *pkt, uint8_t hop);
+
 // Return the stream ID from the packet type, or -1 if the packet type
 // is not that of a stream data packet
 static inline int tl_packet_stream_id(const tl_packet_header *pkt);
@@ -106,6 +114,20 @@ static inline uint8_t *tl_packet_payload_data(tl_packet_header *pkt)
 static inline uint8_t *tl_packet_routing_data(tl_packet_header *pkt)
 {
   return ((uint8_t*) pkt) + sizeof(*pkt) + pkt->payload_size;
+}
+
+static inline int tl_packet_pop_hop(tl_packet_header *pkt)
+{
+  return (pkt->routing_size == 0) ? -1 :
+    tl_packet_routing_data(pkt)[--pkt->routing_size];
+}
+
+static inline int tl_packet_push_hop(tl_packet_header *pkt, uint8_t hop)
+{
+  if (pkt->routing_size >= TL_PACKET_MAX_ROUTING_SIZE)
+    return -1;
+  tl_packet_routing_data(pkt)[pkt->routing_size++] = hop;
+  return 0;
 }
 
 static inline int tl_packet_stream_id(const tl_packet_header *pkt)
