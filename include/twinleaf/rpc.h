@@ -73,15 +73,18 @@ typedef uint16_t rpc_error_t;
 #define TL_RPC_ERROR_NOTFOUND   2 // Call to a nonexistent (or disabled) RPC
 #define TL_RPC_ERROR_MALFORMED  3 // Malformed req packet
 #define TL_RPC_ERROR_ARGS_SIZE  4 // Arguments have the wrong size
-#define TL_RPC_ERROR_ARGS_VAL   5 // Arguments values invalid
+#define TL_RPC_ERROR_INVALID    5 // Arguments values invalid
 #define TL_RPC_ERROR_READ_ONLY  6 // Attempted to assign a value to RO variable
 #define TL_RPC_ERROR_WRITE_ONLY 7 // Attempted to read WO variable
 #define TL_RPC_ERROR_TIMEOUT    8 // Internal timeout condition
 #define TL_RPC_ERROR_BUSY       9 // Busy to perform this operation. try again
 #define TL_RPC_ERROR_STATE     10 // Wrong state to perform this operation.
-#define TL_RPC_ERROR_SAVE      11 // Error saving conf.
-#define TL_RPC_ERROR_LOAD      12 // Error loading conf.
-#define TL_RPC_ERROR_USER      13 // Start value to define per-RPC error codes
+#define TL_RPC_ERROR_LOAD      11 // Error loading conf.
+#define TL_RPC_ERROR_LOAD_RPC  12 // Error auto RPCs after load.
+#define TL_RPC_ERROR_SAVE      13 // Error preparing conf to save.
+#define TL_RPC_ERROR_SAVE_WR   14 // Error saving conf to eeprom
+#define TL_RPC_ERROR_INTERNAL  15 // Firmware internal error.
+#define TL_RPC_ERROR_USER      16 // Start value to define per-RPC error codes
 
 struct tl_rpc_error_header {
   uint16_t req_id;

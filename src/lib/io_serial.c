@@ -254,6 +254,7 @@ static int io_serial_recv(fd_overlay_t *fdo, int fd, void *packet_buffer,
           // data returned by the deserializer.
           // for each character, 2 hex digits + space/newline
           char hexdump[ret.size*3+1];
+          hexdump[0] = '\0';
           for (size_t i = 0; i < ret.size; i++) {
             hexdump[i*3+0] = hexdigit(ret.data[i] >> 4);
             hexdump[i*3+1] = hexdigit(ret.data[i] & 0x0F);

@@ -33,8 +33,8 @@ const char *tl_rpc_strerror(rpc_error_t err_code)
     return "Malformed request";
    case TL_RPC_ERROR_ARGS_SIZE:
     return "Arguments wrong size";
-   case TL_RPC_ERROR_ARGS_VAL:
-    return "Arguments value error";
+   case TL_RPC_ERROR_INVALID:
+    return "Invalid arguments";
    case TL_RPC_ERROR_READ_ONLY:
     return "Attempted to assign read-only value";
    case TL_RPC_ERROR_WRITE_ONLY:
@@ -42,14 +42,19 @@ const char *tl_rpc_strerror(rpc_error_t err_code)
    case TL_RPC_ERROR_TIMEOUT:
     return "Internal timeout";
    case TL_RPC_ERROR_BUSY:
-    return "Unable to fulfill request at the time. Try again later.";
+    return "Unable to fulfill request at the time -- try again later.";
    case TL_RPC_ERROR_STATE:
-    return "Device state incompatible with requested action.";
-   case TL_RPC_ERROR_SAVE:
-    return "Error when writing configuration to EEPROM.";
+    return "Device state incompatible with requested action";
    case TL_RPC_ERROR_LOAD:
-    return "Error when reading configuration from EEPROM. Variables "
-      "can be in an inconsistent state";
+    return "Error when reading configuration from EEPROM";
+   case TL_RPC_ERROR_LOAD_RPC:
+    return "Error applying configuration from EEPROM";
+   case TL_RPC_ERROR_SAVE:
+    return "Error when serializing persistent configuration";
+   case TL_RPC_ERROR_SAVE_WR:
+    return "Error when writing configuration to EEPROM";
+   case TL_RPC_ERROR_INTERNAL:
+    return "Internal firmware error";
    default:
     return "User defined error";
   }
@@ -119,7 +124,7 @@ int tl_simple_rpc(int fd, const char *method, uint16_t req_id,
           errno = EPROTO;
           break;
          case TL_RPC_ERROR_ARGS_SIZE:
-         case TL_RPC_ERROR_ARGS_VAL:
+         case TL_RPC_ERROR_INVALID:
           errno = EINVAL;
           break;
          case TL_RPC_ERROR_READ_ONLY:
@@ -127,10 +132,12 @@ int tl_simple_rpc(int fd, const char *method, uint16_t req_id,
           errno = EPERM;
           break;
          case TL_RPC_ERROR_BUSY:
-          errno = EBUSY;
+          errno = EAGAIN;
           break;
-         case TL_RPC_ERROR_SAVE:
          case TL_RPC_ERROR_LOAD:
+         case TL_RPC_ERROR_LOAD_RPC:
+         case TL_RPC_ERROR_SAVE:
+         case TL_RPC_ERROR_SAVE_WR:
           errno = EIO;
           break;
          default:

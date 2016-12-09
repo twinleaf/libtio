@@ -113,9 +113,9 @@ tl_serial_deserializer_ret tl_serial_deserialize(tl_serial_deserializer *des,
       des->error = 0;
       des->esc = 0;
 
-      if (ret.size < TL_CRC32_SIZE)
+      if (ret.size < TL_CRC32_SIZE) {
         ret.error |= TL_SERIAL_ERROR_SHORT;
-      else {
+      } else {
         uint32_t data_crc = tl_crc32(ret.data, ret.size - TL_CRC32_SIZE);
         uint32_t pkt_crc = *(uint32_t*)&ret.data[ret.size - TL_CRC32_SIZE];
         if (data_crc != pkt_crc)
@@ -123,8 +123,8 @@ tl_serial_deserializer_ret tl_serial_deserialize(tl_serial_deserializer *des,
 
         if (!ret.error)
           ret.size -= TL_CRC32_SIZE;
-        return ret;
       }
+      return ret;
     }
 
     if (!des->esc && (c == TL_SERIAL_SLIP_ESC)) {
