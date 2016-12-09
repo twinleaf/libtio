@@ -246,6 +246,7 @@ void dstream_writer::process_desc(const tl_data_stream_desc_header *desc_,
     ss << "." << int(tmp.stream_id);
     if (name.length() > 0)
       ss << "." << name;
+    ss << "." << int(tmp.restart_id);
     ss << "." << time(NULL);
 
     out.open(ss.str());

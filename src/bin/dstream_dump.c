@@ -52,6 +52,10 @@ int main(int argc, char *argv[])
                                i * tl_data_type_size(desc.type)];
           if (desc.type == TL_DATA_TYPE_INT32) {
             printf(" %"PRId32, *(int32_t*)n);
+          } else if (desc.type == TL_DATA_TYPE_INT16) {
+            printf(" %"PRId16, *(int16_t*)n);
+          } else if (desc.type == TL_DATA_TYPE_FLOAT32) {
+            printf(" %f", *(float*)n);
           } else {
             fprintf(stderr, "unsupported format (TODO)\n");
             return 1;
