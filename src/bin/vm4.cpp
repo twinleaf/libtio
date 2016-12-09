@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
 
   tl_rpc_reply_packet rep;
   uint32_t period = atoi(argv[2]);
-  tl_simple_rpc(fd, "period_preload", 0, &period, sizeof(period), &rep, NULL);
+  tl_simple_rpc(fd, "period", 0, &period, sizeof(period), &rep, NULL);
   tl_simple_rpc(fd, "start", 0, NULL, 0, &rep, NULL);
 
   for (int i = 0; i < 100; i++) {
