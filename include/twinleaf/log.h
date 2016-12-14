@@ -10,16 +10,17 @@
 #include <twinleaf/packet.h>
 #include <stdarg.h>
 
-typedef uint8_t tl_log_type;
+typedef uint8_t tl_log_t;
 
-#define TL_LOG_TYPE_ERROR      0
-#define TL_LOG_TYPE_WARNING    1
-#define TL_LOG_TYPE_INFO       2
-#define TL_LOG_TYPE_DEBUG      3
+#define TL_LOG_CRITICAL   0
+#define TL_LOG_ERROR      1
+#define TL_LOG_WARNING    2
+#define TL_LOG_INFO       3
+#define TL_LOG_DEBUG      4
 
 struct tl_log_header {
   uint32_t data;
-  tl_log_type type;
+  tl_log_t level;
 } __attribute__((__packed__));
 typedef struct tl_log_header tl_log_header;
 

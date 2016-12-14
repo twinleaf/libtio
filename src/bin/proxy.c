@@ -395,11 +395,12 @@ int sensor_data(size_t ps, tl_packet *packet)
     char fmt[128];
     snprintf(fmt, sizeof(fmt), "Log (%%s) from sensor '%%s': %%.%zds", len);
     const char *type = "UNKNOWN";
-    switch(logp->log.type) {
-     case TL_LOG_TYPE_ERROR: type = "ERROR"; break;
-     case TL_LOG_TYPE_WARNING: type = "WARNING"; break;
-     case TL_LOG_TYPE_INFO: type = "INFO"; break;
-     case TL_LOG_TYPE_DEBUG: type = "DEBUG"; break;
+    switch(logp->log.level) {
+     case TL_LOG_CRITICAL: type = "CRITICAL"; break;
+     case TL_LOG_ERROR: type = "ERROR"; break;
+     case TL_LOG_WARNING: type = "WARNING"; break;
+     case TL_LOG_INFO: type = "INFO"; break;
+     case TL_LOG_DEBUG: type = "DEBUG"; break;
     }
     logmsg(fmt, type, path, logp->message);
   }
