@@ -25,8 +25,12 @@ int main(int argc, char *argv[])
     char name[name_len+1];
     fread(&name, name_len, 1, fp);
     name[name_len] = '\0';
-    fprintf(stderr, "Dumping stream '%s', %d channels, %zd bytes \n", name,
-            desc.channels, tl_data_type_size(desc.type));
+    double period = 1.0e-6 * desc.period_numerator / desc.period_denominator;
+    double rate = 1/period;
+    fprintf(stderr, "Dumping stream '%s', %d channels, %zd bytes "
+            "at %lf Hz (%lf us)\n",
+            name, desc.channels, tl_data_type_size(desc.type),
+            rate, period * 1e6);
   }
 
   size_t sample_size = desc.channels * tl_data_type_size(desc.type);
