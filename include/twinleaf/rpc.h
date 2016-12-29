@@ -84,7 +84,8 @@ typedef uint16_t rpc_error_t;
 #define TL_RPC_ERROR_SAVE      13 // Error preparing conf to save.
 #define TL_RPC_ERROR_SAVE_WR   14 // Error saving conf to eeprom
 #define TL_RPC_ERROR_INTERNAL  15 // Firmware internal error.
-#define TL_RPC_ERROR_USER      16 // Start value to define per-RPC error codes
+#define TL_RPC_ERROR_NOBUFS    16 // No buffers available to complete operation
+#define TL_RPC_ERROR_USER      17 // Start value to define per-RPC error codes
 
 struct tl_rpc_error_header {
   uint16_t req_id;

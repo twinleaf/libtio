@@ -55,6 +55,8 @@ const char *tl_rpc_strerror(rpc_error_t err_code)
     return "Error when writing configuration to EEPROM";
    case TL_RPC_ERROR_INTERNAL:
     return "Internal firmware error";
+   case TL_RPC_ERROR_NOBUFS:
+    return "Unable to allocate buffers needed to perform operation";
    default:
     return "User defined error";
   }
@@ -139,6 +141,9 @@ int tl_simple_rpc(int fd, const char *method, uint16_t req_id,
          case TL_RPC_ERROR_SAVE:
          case TL_RPC_ERROR_SAVE_WR:
           errno = EIO;
+          break;
+         case TL_RPC_ERROR_NOBUFS:
+          errno = ENOBUFS;
           break;
          default:
           errno = ENOENT;
