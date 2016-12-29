@@ -5,7 +5,7 @@
 #ifndef TL_DATA_H
 #define TL_DATA_H
 
-#include <twinleaf/packet.h>
+#include <tio/packet.h>
 
 #define TL_DATA_TYPE_UINT8      0x10 // 16
 #define TL_DATA_TYPE_INT8       0x11 // 17

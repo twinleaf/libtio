@@ -9,7 +9,7 @@ CXXFLAGS = -g -Wall -Wextra -Iinclude/ -std=gnu++11
 .DEFAULT_GOAL = all
 .SECONDARY:
 
-LIB_HEADERS = $(wildcard include/twinleaf/*.h) $(wildcard src/lib/*.h)
+LIB_HEADERS = $(wildcard include/tio/*.h) $(wildcard src/lib/*.h)
 LIB_SOURCES = $(wildcard src/lib/*.c)
 LIB_OBJS = $(patsubst src/%.c,obj/%.o,$(LIB_SOURCES))
 
@@ -26,24 +26,24 @@ obj/lib obj/bin lib bin:
 obj/lib/%.o: src/lib/%.c $(LIB_HEADERS)
 	@$(CC) $(CCFLAGS) -c $< -o $@
 
-lib/libtwinleaf.a: $(LIB_OBJS) | lib
+lib/libtio.a: $(LIB_OBJS) | lib
 	@ar rcs $@ $(LIB_OBJS)
 
 obj/bin/%.o: src/bin/%.c $(BIN_HEADERS) | obj/bin
 	@$(CC) $(CCFLAGS) -c $< -o $@
 
-bin/%: obj/bin/%.o lib/libtwinleaf.a | bin
-	@$(CC) -Llib -o $@ $< -ltwinleaf
+bin/%: obj/bin/%.o lib/libtio.a | bin
+	@$(CC) -Llib -o $@ $< -ltio
 
 bin/vm4: src/bin/vm4.cpp $(BIN_HEADERS) | bin
-	@g++ -Llib $(CXXFLAGS) -o $@ $< -ltwinleaf
+	@g++ -Llib $(CXXFLAGS) -o $@ $< -ltio
 
 bin/dstream_record: src/bin/dstream_record.cpp $(BIN_HEADERS) | bin
-	@g++ -Llib $(CXXFLAGS) -o $@ $< -ltwinleaf
+	@g++ -Llib $(CXXFLAGS) -o $@ $< -ltio
 
 binaries: $(BIN_BINS) bin/vm4 bin/dstream_record
 
-all: lib/libtwinleaf.a binaries
+all: lib/libtio.a binaries
 
 clean:
 	@rm -rf obj lib bin

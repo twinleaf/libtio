@@ -2,10 +2,10 @@
 // Author: gilberto@tersatech.com
 // License: Proprietary
 
-#include <twinleaf/io.h>
-#include <twinleaf/packet.h>
-#include <twinleaf/log.h>
-#include <twinleaf/rpc.h>
+#include <tio/io.h>
+#include <tio/packet.h>
+#include <tio/log.h>
+#include <tio/rpc.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -72,7 +72,7 @@ void terminate_loop_on_signal(int sig)
 #define EXPAND_AND_QUOTE(str) QUOTE(str)
 const char *service_port = EXPAND_AND_QUOTE(TL_TCP_DEFAULT_PORT);
 
-const char *hub_name = "Twinleaf PROXY";
+const char *hub_name = "TIO PROXY";
 char hub_id[128] = "";
 
 size_t n_sensors = 0;
@@ -562,7 +562,7 @@ int client_connection(size_t ps)
 
     int tlfd = tlfdopen(client_fd, "tcp", NULL, &io_log);
     if (tlfd < 0) {
-      logmsg("Failed to open new client (%s:%s) in libtwinleaf: %s",
+      logmsg("Failed to open new client (%s:%s) in libtio: %s",
              host, port, strerror(errno));
       close(client_fd);
       continue;

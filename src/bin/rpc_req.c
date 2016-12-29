@@ -6,8 +6,8 @@
 // Example:
 // rpc_req serial://ttyUSB0:115200/ period u32:100
 
-#include <twinleaf/rpc.h>
-#include <twinleaf/io.h>
+#include <tio/rpc.h>
+#include <tio/io.h>
 
 #include <stdio.h>
 #include <stdlib.h>

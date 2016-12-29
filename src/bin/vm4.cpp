@@ -4,9 +4,9 @@
 
 // Example program to interface to vm4
 
-#include <twinleaf/rpc.h>
-#include <twinleaf/io.h>
-#include <twinleaf/data.h>
+#include <tio/rpc.h>
+#include <tio/io.h>
+#include <tio/data.h>
 
 #include <stdio.h>
 #include <stdlib.h>

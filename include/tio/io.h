@@ -61,7 +61,7 @@ int tlfdopen(int fd, const char *protocol, const char *routing,
              tlio_logger *logger);
 
 // Close a descriptor opened with tlopen/tlfdopen. Calls close() after
-// libtwinleaf specific cleanup. Returns 0 on success, -1 on failure
+// libtio specific cleanup. Returns 0 on success, -1 on failure
 // (in which case fd was not closed).
 int tlclose(int fd);
 
