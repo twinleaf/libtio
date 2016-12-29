@@ -7,18 +7,18 @@
 
 #include <twinleaf/packet.h>
 
-#define TL_DATA_TYPE_UINT8      0x10
-#define TL_DATA_TYPE_INT8       0x11
-#define TL_DATA_TYPE_UINT16     0x20
-#define TL_DATA_TYPE_INT16      0x21
-#define TL_DATA_TYPE_UINT24     0x30
-#define TL_DATA_TYPE_INT24      0x31
-#define TL_DATA_TYPE_UINT32     0x40
-#define TL_DATA_TYPE_INT32      0x41
-#define TL_DATA_TYPE_UINT64     0x80
-#define TL_DATA_TYPE_INT64      0x81
-#define TL_DATA_TYPE_FLOAT32    0x42
-#define TL_DATA_TYPE_FLOAT64    0x82
+#define TL_DATA_TYPE_UINT8      0x10 // 16
+#define TL_DATA_TYPE_INT8       0x11 // 17
+#define TL_DATA_TYPE_UINT16     0x20 // 32
+#define TL_DATA_TYPE_INT16      0x21 // 33
+#define TL_DATA_TYPE_UINT24     0x30 // 48
+#define TL_DATA_TYPE_INT24      0x31 // 49
+#define TL_DATA_TYPE_UINT32     0x40 // 64
+#define TL_DATA_TYPE_INT32      0x41 // 65
+#define TL_DATA_TYPE_UINT64     0x80 // 128
+#define TL_DATA_TYPE_INT64      0x81 // 129
+#define TL_DATA_TYPE_FLOAT32    0x42 // 66
+#define TL_DATA_TYPE_FLOAT64    0x82 // 130
 
 static inline size_t tl_data_type_size(unsigned type);
 
