@@ -1,4 +1,4 @@
-// Copyright: 2016 Twinleaf LLC
+// Copyright: 2016-2017 Twinleaf LLC
 // Author: gilberto@tersatech.com
 // License: Proprietary
 
@@ -121,19 +121,22 @@ extern "C" {
 const char *tl_rpc_strerror(rpc_error_t err_code);
 
 int tl_rpc_request_by_name(tl_rpc_request_packet *pkt, uint16_t req_id,
-                           const char *method, void *arg, size_t arg_size);
+                           const char *method,
+                           const void *arg, size_t arg_size);
 int tl_rpc_request_by_id(tl_rpc_request_packet *pkt, uint16_t req_id,
-                         uint16_t method, void *arg, size_t arg_size);
+                         uint16_t method, const void *arg, size_t arg_size);
 
 typedef int tl_simple_rpc_other_packets_cb(const tl_packet_header *hdr);
 
 int tl_simple_rpc(int fd, const char *method, uint16_t req_id,
-                  void *arg, size_t arg_size, tl_rpc_reply_packet *rep,
+                  const void *arg, size_t arg_size, tl_rpc_reply_packet *rep,
+                  const uint8_t *routing, size_t routing_len,
                   tl_simple_rpc_other_packets_cb *cb);
 
 int tl_simple_rpc_fixed_size(int fd, const char *method, uint16_t req_id,
-                             void *arg, size_t arg_size,
+                             const void *arg, size_t arg_size,
                              void *ret, size_t ret_size,
+                             const uint8_t *routing, size_t routing_len,
                              tl_simple_rpc_other_packets_cb *cb);
 
 #ifdef __cplusplus

@@ -1,4 +1,4 @@
-// Copyright: 2016 Twinleaf LLC
+// Copyright: 2016-2017 Twinleaf LLC
 // Author: gilberto@tersatech.com
 // License: Proprietary
 
@@ -63,7 +63,8 @@ const char *tl_rpc_strerror(rpc_error_t err_code)
 }
 
 int tl_rpc_request_by_name(tl_rpc_request_packet *pkt, uint16_t req_id,
-                           const char *method, void *arg, size_t arg_size)
+                           const char *method,
+                           const void *arg, size_t arg_size)
 {
   size_t name_len = strlen(method);
   if ((name_len + arg_size) > TL_RPC_REQUEST_MAX_PAYLOAD_SIZE) {
@@ -82,7 +83,7 @@ int tl_rpc_request_by_name(tl_rpc_request_packet *pkt, uint16_t req_id,
 }
 
 int tl_rpc_request_by_id(tl_rpc_request_packet *pkt, uint16_t req_id,
-                         uint16_t method, void *arg, size_t arg_size)
+                         uint16_t method, const void *arg, size_t arg_size)
 {
   if (arg_size > TL_RPC_REQUEST_MAX_PAYLOAD_SIZE) {
     errno = E2BIG;
@@ -99,11 +100,16 @@ int tl_rpc_request_by_id(tl_rpc_request_packet *pkt, uint16_t req_id,
 }
 
 int tl_simple_rpc(int fd, const char *method, uint16_t req_id,
-                  void *arg, size_t arg_size, tl_rpc_reply_packet *rep,
+                  const void *arg, size_t arg_size, tl_rpc_reply_packet *rep,
+                  const uint8_t *routing, size_t routing_len,
                   tl_simple_rpc_other_packets_cb *cb)
 {
   tl_rpc_request_packet req;
+
   tl_rpc_request_by_name(&req, req_id, method, arg, arg_size);
+  memcpy(tl_packet_routing_data(&req.hdr), routing, routing_len);
+  req.hdr.routing_size += routing_len;
+
   if (tlsend(fd, &req) != 0)
     return -1;
   for (;;) {
@@ -160,16 +166,19 @@ int tl_simple_rpc(int fd, const char *method, uint16_t req_id,
 }
 
 int tl_simple_rpc_fixed_size(int fd, const char *method, uint16_t req_id,
-                             void *arg, size_t arg_size,
+                             const void *arg, size_t arg_size,
                              void *ret, size_t ret_size,
+                             const uint8_t *routing, size_t routing_len,
                              tl_simple_rpc_other_packets_cb *cb)
 {
   tl_rpc_reply_packet rep;
-  if (tl_simple_rpc(fd, method, req_id, arg, arg_size, &rep, cb) != 0)
-    return -1;
+  int rpcret = tl_simple_rpc(fd, method, req_id, arg, arg_size, &rep,
+                             routing, routing_len, cb);
+  if (rpcret != 0)
+    return rpcret;
   if (tl_rpc_reply_payload_size(&rep) != ret_size) {
     errno = EINVAL;
-    return -1;
+    return TL_RPC_ERROR_UNDEFINED;
   }
   memcpy(ret, rep.payload, ret_size);
   return 0;
