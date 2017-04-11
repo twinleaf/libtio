@@ -32,15 +32,20 @@ static inline size_t tl_data_type_size(unsigned type);
 
 
 // Timestamp relative to the beginning of the data acquisition (always zero)
-#define TL_DATA_STREAM_TSTAMP_ZERO  0
+#define TL_DATA_STREAM_TSTAMP_ZERO      0
 // Timestamp relative to device boot using device timebase
-#define TL_DATA_STREAM_TSTAMP_DEV   1
-// Timestamp is UNIX time (!= time since UNIX epoch)
-#define TL_DATA_STREAM_TSTAMP_UNIX  2
+#define TL_DATA_STREAM_TSTAMP_DEV       1
+// Timestamp is relative to a device upstream in the sensor tree
+#define TL_DATA_STREAM_TSTAMP_UPSTREAM  2
+// Timestamp is UNIX time (!= time since UNIX epoch. no leap seconds)
+#define TL_DATA_STREAM_TSTAMP_UNIX      3
 
 struct tl_data_stream_desc_header {
   // Stream ID described by these parameters
-  uint8_t stream_id;
+  uint16_t stream_id;
+
+  // Arbitrary ID that should changes an acquisition is restarted
+  uint16_t restart_id;
 
   // Fundamental data type for the data (every channel in a sample has the
   // same type)
@@ -49,13 +54,16 @@ struct tl_data_stream_desc_header {
   // Number of channels in a sample.
   uint8_t channels;
 
-  // Arbitrary ID that should change when an acquisition is restarted
-  uint8_t restart_id;
+  // Flags first or stopped, defined above
+  uint8_t flags;
+
+  // Timestamp type, defined above
+  uint8_t tstamp_type;
 
   // Start timestamp, in ns (epoch depends on flags)
   uint64_t start_timestamp;
 
-  // Sample number of the first sample in the last packet sent,
+  // Sample number of the last sample in the last packet sent,
   // or of the next packet if FIRST flag is set (in that case, it is
   // not guaranteed that it won't skip)
   uint64_t sample_counter;
@@ -63,10 +71,6 @@ struct tl_data_stream_desc_header {
   // Sampling period, in us
   uint32_t period_numerator;
   uint32_t period_denominator;
-
-  // Flags and timestamp type
-  uint8_t flags;
-  uint8_t tstamp_type;
 } __attribute__((__packed__));
 typedef struct tl_data_stream_desc_header tl_data_stream_desc_header;
 
