@@ -41,24 +41,11 @@ static inline size_t tl_data_type_size(unsigned type);
 #define TL_DATA_STREAM_TSTAMP_UNIX      3
 
 struct tl_data_stream_desc_header {
+  // Version of the header packet (for backwards compatibility. now always 0)
+  uint16_t version;
+
   // Stream ID described by these parameters
   uint16_t stream_id;
-
-  // Arbitrary ID that should changes an acquisition is restarted
-  uint16_t restart_id;
-
-  // Fundamental data type for the data (every channel in a sample has the
-  // same type)
-  uint8_t type;
-
-  // Number of channels in a sample.
-  uint8_t channels;
-
-  // Flags first or stopped, defined above
-  uint8_t flags;
-
-  // Timestamp type, defined above
-  uint8_t tstamp_type;
 
   // Start timestamp, in ns (epoch depends on flags)
   uint64_t start_timestamp;
@@ -71,6 +58,25 @@ struct tl_data_stream_desc_header {
   // Sampling period, in us
   uint32_t period_numerator;
   uint32_t period_denominator;
+
+  // Flags first or stopped, defined above
+  uint8_t flags;
+
+  // Timestamp type, defined above
+  uint8_t tstamp_type;
+
+  // Arbitrary ID that changes when an acquisition is restarted for this stream
+  uint16_t restart_id;
+
+  // Size of a sample
+  uint16_t sample_size;
+
+  // Fundamental data type for the data (every channel in a sample has the
+  // same type)
+  uint8_t type;
+
+  // Number of channels in a sample.
+  uint8_t channels;
 } __attribute__((__packed__));
 typedef struct tl_data_stream_desc_header tl_data_stream_desc_header;
 

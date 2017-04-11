@@ -323,7 +323,7 @@ int tlsend(int fd, const void *_packet)
   if (!packet)
     return 0;
 
-  if (((packet->routing_size + fdo->routing_size) >
+  if (((tl_packet_routing_size(packet) + fdo->routing_size) >
        TL_PACKET_MAX_ROUTING_SIZE) ||
       (packet->payload_size > TL_PACKET_MAX_PAYLOAD_SIZE)) {
     errno = EBADMSG;
@@ -338,7 +338,9 @@ int tlsend(int fd, const void *_packet)
     memcpy(prefix_tmp_buf, packet, sz);
     memcpy(prefix_tmp_buf + sz, fdo->routing, fdo->routing_size);
     packet = (const tl_packet_header*) prefix_tmp_buf;
-    ((tl_packet_header*)packet)->routing_size += fdo->routing_size;
+    tl_packet_set_routing_size((tl_packet_header*)packet,
+                               tl_packet_routing_size(packet) +
+                               fdo->routing_size);
   }
 
   int ret = vt->io_send(fdo, fd, packet, tl_packet_total_size(packet));
@@ -371,14 +373,15 @@ int tlrecv(int fd, void *packet, size_t bufsize)
       // verify that if we had a prefix this message belongs to the right
       // sensor subtree, otherwise skip this packet.
       tl_packet_header *hdr = (tl_packet_header*) packet;
-      if (hdr->routing_size < fdo->routing_size)
+      size_t routing_size = tl_packet_routing_size(hdr);
+      if (routing_size < fdo->routing_size)
         continue;
       uint8_t *subtree = tl_packet_routing_data(hdr) +
-        (hdr->routing_size - fdo->routing_size);
+        routing_size - fdo->routing_size;
       if (memcmp(subtree, fdo->routing, fdo->routing_size) != 0)
         continue;
       else
-        hdr->routing_size -= fdo->routing_size;
+        tl_packet_set_routing_size(hdr, routing_size - fdo->routing_size);
     }
     return 0;
   }

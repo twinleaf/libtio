@@ -272,7 +272,7 @@ static int io_serial_recv(fd_overlay_t *fdo, int fd, void *packet_buffer,
       // need to validate that it matches the header for size
       const tl_packet_header *hdr = (const tl_packet_header*) ret.data;
       if ((ret.size != tl_packet_total_size(hdr)) ||
-          (hdr->routing_size > TL_PACKET_MAX_ROUTING_SIZE)) {
+          (tl_packet_routing_size(hdr) > TL_PACKET_MAX_ROUTING_SIZE)) {
         errno = EPROTO;
         return -1;
       }

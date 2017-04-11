@@ -24,7 +24,7 @@ struct tl_rpc_request_packet {
   tl_packet_header      hdr;
   tl_rpc_request_header req;
   uint8_t payload[TL_RPC_REQUEST_MAX_PAYLOAD_SIZE];
-  uint8_t __routing_reserved[TL_PACKET_MAX_ROUTING_SIZE];
+  uint8_t routing[TL_PACKET_MAX_ROUTING_SIZE];
 
 #ifdef __cplusplus
   template<typename T> inline T *payload_start();
@@ -53,7 +53,7 @@ struct tl_rpc_reply_packet {
   tl_packet_header      hdr;
   tl_rpc_reply_header   rep;
   uint8_t payload[TL_RPC_REPLY_MAX_PAYLOAD_SIZE];
-  uint8_t __routing_reserved[TL_PACKET_MAX_ROUTING_SIZE];
+  uint8_t routing[TL_PACKET_MAX_ROUTING_SIZE];
 
 #ifdef __cplusplus
   template<typename T> inline T *payload_start();
@@ -100,7 +100,7 @@ struct tl_rpc_error_packet {
   tl_packet_header      hdr;
   tl_rpc_error_header   err;
   uint8_t payload[TL_RPC_ERROR_MAX_PAYLOAD_SIZE];
-  uint8_t __routing_reserved[TL_PACKET_MAX_ROUTING_SIZE];
+  uint8_t routing[TL_PACKET_MAX_ROUTING_SIZE];
 
 #ifdef __cplusplus
   template<typename T> inline T *payload_start();
@@ -169,7 +169,7 @@ static inline tl_rpc_reply_packet *tl_rpc_make_reply(tl_rpc_request_packet *r)
 {
   tl_rpc_reply_packet *rep = (tl_rpc_reply_packet*) r;
   rep->hdr.type = TL_PTYPE_RPC_REP;
-  rep->hdr.routing_size = 0;
+  rep->hdr.routing_size_and_ttl = 0;
   rep->hdr.payload_size = sizeof(tl_rpc_reply_header);
   return rep;
 }
@@ -184,7 +184,7 @@ static inline tl_rpc_error_packet *tl_rpc_make_error(tl_rpc_request_packet *r,
 {
   tl_rpc_error_packet *err = (tl_rpc_error_packet*) r;
   err->hdr.type = TL_PTYPE_RPC_ERROR;
-  err->hdr.routing_size = 0;
+  err->hdr.routing_size_and_ttl = 0;
   err->hdr.payload_size = sizeof(tl_rpc_error_header);
   err->err.code = code;
   return err;

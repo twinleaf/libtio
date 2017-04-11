@@ -17,11 +17,14 @@
 
 struct tl_packet_header {
   uint8_t type;
-  uint8_t routing_size;
+  uint8_t routing_size_and_ttl;
   uint16_t payload_size;
 
 #ifdef __cplusplus
   inline size_t total_size() const;
+  inline size_t routing_size() const;
+  inline void set_routing_size(size_t s);
+  inline unsigned ttl() const;
   inline uint8_t *payload_data();
   inline const uint8_t *payload_data() const;
   inline uint8_t *routing_data();
@@ -38,6 +41,9 @@ typedef struct tl_packet_header tl_packet_header;
 // Size at the end reserved for routing information
 #define TL_PACKET_MAX_ROUTING_SIZE   8
 
+// Max finite TTL value. Note: zero == immortal packet
+#define TL_PACKET_MAX_TTL 15
+
 // Maximum payload length (inferred)
 #define TL_PACKET_MAX_PAYLOAD_SIZE \
   (TL_PACKET_MAX_SIZE - sizeof(tl_packet_header) - TL_PACKET_MAX_ROUTING_SIZE)
@@ -50,7 +56,7 @@ struct tl_packet {
   // Reserved space for routing. Note: use tl_packet_routing_data() to get
   // a pointer to the routing data, since it will be at the end of the payload
   // and not at a fixed offset.
-  uint8_t __routing_reserved[TL_PACKET_MAX_ROUTING_SIZE];
+  uint8_t routing[TL_PACKET_MAX_ROUTING_SIZE];
 };
 typedef struct tl_packet tl_packet;
 
@@ -69,11 +75,21 @@ typedef struct tl_packet tl_packet;
 // Return the total packet size given a valid header.
 static inline size_t tl_packet_total_size(const tl_packet_header *pkt);
 
+// Return the number of hops in the routing section.
+static inline size_t tl_packet_routing_size(const tl_packet_header *pkt);
+
+// Return packet's TTL.
+static inline size_t tl_packet_ttl(const tl_packet_header *pkt);
+
 // Return a pointer to the start of the payload
 static inline uint8_t *tl_packet_payload_data(tl_packet_header *pkt);
 
 // Return a pointer to the start of the routing data
 static inline uint8_t *tl_packet_routing_data(tl_packet_header *pkt);
+
+// Set routing size.
+static inline void tl_packet_set_routing_size(tl_packet_header *pkt,
+                                              size_t size);
 
 // Return the next hop for a packet, removing it from the routing data.
 // Returns >= 0 on success, with the hop ID, otherwise -1 and pkt unchanged.
@@ -82,6 +98,9 @@ static inline int tl_packet_pop_hop(tl_packet_header *pkt);
 // Append a hop to the routing data.
 // Returns 0 on success, otherwise -1 and pkt unchanged.
 static inline int tl_packet_push_hop(tl_packet_header *pkt, uint8_t hop);
+
+// Set packet's TTL
+static inline void tl_packet_set_ttl(tl_packet_header *pkt, unsigned ttl);
 
 // Return the stream ID from the packet type, or -1 if the packet type
 // is not that of a stream data packet
@@ -103,7 +122,17 @@ int tl_format_routing(uint8_t *routing, size_t routing_size,
 
 static inline size_t tl_packet_total_size(const tl_packet_header *pkt)
 {
-  return sizeof(*pkt) + pkt->payload_size + pkt->routing_size;
+  return sizeof(*pkt) + pkt->payload_size + tl_packet_routing_size(pkt);
+}
+
+static inline size_t tl_packet_routing_size(const tl_packet_header *pkt)
+{
+  return (pkt->routing_size_and_ttl & 0x0F);
+}
+
+static inline size_t tl_packet_ttl(const tl_packet_header *pkt)
+{
+  return ((pkt->routing_size_and_ttl >> 4) & 0x0F);
 }
 
 static inline uint8_t *tl_packet_payload_data(tl_packet_header *pkt)
@@ -116,18 +145,36 @@ static inline uint8_t *tl_packet_routing_data(tl_packet_header *pkt)
   return ((uint8_t*) pkt) + sizeof(*pkt) + pkt->payload_size;
 }
 
+static inline void tl_packet_set_routing_size(tl_packet_header *pkt,
+                                              size_t size)
+{
+  pkt->routing_size_and_ttl =
+    (pkt->routing_size_and_ttl & 0xF0) | (size & 0x0F);
+}
+
 static inline int tl_packet_pop_hop(tl_packet_header *pkt)
 {
-  return (pkt->routing_size == 0) ? -1 :
-    tl_packet_routing_data(pkt)[--pkt->routing_size];
+  size_t routing_size = tl_packet_routing_size(pkt);
+  if (routing_size == 0)
+    return -1;
+  tl_packet_set_routing_size(pkt, --routing_size);
+  return tl_packet_routing_data(pkt)[routing_size];
 }
 
 static inline int tl_packet_push_hop(tl_packet_header *pkt, uint8_t hop)
 {
-  if (pkt->routing_size >= TL_PACKET_MAX_ROUTING_SIZE)
+  size_t routing_size = tl_packet_routing_size(pkt);
+  if (routing_size >= TL_PACKET_MAX_ROUTING_SIZE)
     return -1;
-  tl_packet_routing_data(pkt)[pkt->routing_size++] = hop;
+  tl_packet_routing_data(pkt)[routing_size++] = hop;
+  tl_packet_set_routing_size(pkt, routing_size);
   return 0;
+}
+
+static inline void tl_packet_set_ttl(tl_packet_header *pkt, unsigned ttl)
+{
+  pkt->routing_size_and_ttl =
+    tl_packet_routing_size(pkt) | ((ttl & 0xF) << 4);
 }
 
 static inline int tl_packet_stream_id(const tl_packet_header *pkt)
@@ -140,6 +187,21 @@ static inline int tl_packet_stream_id(const tl_packet_header *pkt)
 inline size_t tl_packet_header::total_size() const
 {
   return tl_packet_total_size(this);
+}
+
+inline size_t tl_packet_header::routing_size() const
+{
+  return tl_packet_routing_size(this);
+}
+
+inline void tl_packet_header::set_routing_size(size_t s)
+{
+  tl_packet_set_routing_size(this, s);
+}
+
+inline unsigned tl_packet_header::ttl() const
+{
+  return tl_packet_ttl(this);
 }
 
 inline uint8_t *tl_packet_header::payload_data()

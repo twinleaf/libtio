@@ -160,7 +160,7 @@ static int io_tcp_recv(fd_overlay_t *fdo, int fd, void *packet_buffer,
   tl_packet_header *hdr = (tl_packet_header*) state->rx_buf;
   size_t psize = tl_packet_total_size(hdr);
   if ((psize > TL_PACKET_MAX_SIZE) ||
-      (hdr->routing_size > TL_PACKET_MAX_ROUTING_SIZE)) {
+      (tl_packet_routing_size(hdr) > TL_PACKET_MAX_ROUTING_SIZE)) {
     state->in_buf = 0;
     errno = EPROTO;
     return -1;

@@ -72,7 +72,7 @@ int tl_rpc_request_by_name(tl_rpc_request_packet *pkt, uint16_t req_id,
     return -1;
   }
   pkt->hdr.type = TL_PTYPE_RPC_REQ;
-  pkt->hdr.routing_size = 0;
+  pkt->hdr.routing_size_and_ttl = 0;
   pkt->hdr.payload_size = sizeof(tl_rpc_request_header) + name_len + arg_size;
   pkt->req.id = req_id;
   pkt->req.method_id = TL_RPC_REQUEST_BY_NAME | name_len;
@@ -90,7 +90,7 @@ int tl_rpc_request_by_id(tl_rpc_request_packet *pkt, uint16_t req_id,
     return -1;
   }
   pkt->hdr.type = TL_PTYPE_RPC_REQ;
-  pkt->hdr.routing_size = 0;
+  pkt->hdr.routing_size_and_ttl = 0;
   pkt->hdr.payload_size = sizeof(tl_rpc_request_header) + arg_size;
   pkt->req.id = req_id;
   pkt->req.method_id = method;
@@ -108,7 +108,8 @@ int tl_simple_rpc(int fd, const char *method, uint16_t req_id,
 
   tl_rpc_request_by_name(&req, req_id, method, arg, arg_size);
   memcpy(tl_packet_routing_data(&req.hdr), routing, routing_len);
-  req.hdr.routing_size += routing_len;
+  // TTL = 0 here, so just increase
+  req.hdr.routing_size_and_ttl += routing_len;
 
   if (tlsend(fd, &req) != 0)
     return -1;
