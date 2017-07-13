@@ -94,7 +94,7 @@ payload, and the size of the routing data.
 Payload can be anywhere between 0 and 500 bytes in length, while routing can
 take up between 0 and 8 bytes.
 
-Payload lenght, and any of the multi-byte quantities in the packets'
+Payload length, and any of the multi-byte quantities in the packets'
 payloads are little endian, which is the native endianness of the STM32
 microcontrollers and of x86-64.
 
