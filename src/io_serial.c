@@ -24,6 +24,9 @@
 #define DESERIALIZER_BUF_SIZE TL_PACKET_MAX_SIZE
 #define SERIAL_READ_BUF_SIZE 1024
 
+#define MAKE_TERMIOS_RATE_(n) B##n
+#define MAKE_TERMIOS_RATE(n) MAKE_TERMIOS_RATE_(n)
+
 struct serial_state {
   int parsed_first_packet;
 
@@ -64,36 +67,46 @@ static int io_serial_open(const char *location, int flags, tlio_logger *logger)
   memcpy(dev+5, location, port_len);
   dev[5+port_len] = '\0';
 
-  int fd = open(dev, O_RDWR | O_NOCTTY | (flags & ~O_NONBLOCK));
+  int fd = open(dev, O_RDWR | O_NOCTTY | flags | O_NONBLOCK);
   if (fd < 0)
     return -1;
 
   speed_t speed = B0;
+
 #if defined (__linux__)
   // In Linux, speed_t is an enum, limited to certain values. If the speed
   // does not match one of the enums, it's necessary to use the serial API
   // directly. The API seems to be intelligent enough to convert a custom
   // speed close enough to a predefined mode, so simply always use the
-  // serial API.
-  struct serial_struct ss;
-  if (ioctl(fd, TIOCGSERIAL, &ss) < 0)
-    goto close_and_error;
-  speed = B38400;
-  ss.flags = (ss.flags & ~ASYNC_SPD_MASK) | ASYNC_SPD_CUST;
-  ss.custom_divisor = (ss.baud_base + (bitrate / 2)) / bitrate;
-  if (ss.custom_divisor < 1) {
-    errno = EINVAL;
-    goto close_and_error;
+  // serial API, except for the default bitrate. The reason to hardcode
+  // the latter is that WSL on Windows does not support the serial
+  // API at this time.
+  if (bitrate == TL_SERIAL_DEFAULT_BITRATE) {
+    speed = MAKE_TERMIOS_RATE(TL_SERIAL_DEFAULT_BITRATE);
+  } else {
+    struct serial_struct ss;
+    if (ioctl(fd, TIOCGSERIAL, &ss) < 0) {
+      tlio_logf(logger, fd, "io_serial: serial API failed. If on Windows, "
+                "only default bitrate is supported.");
+      goto close_and_error;
+    }
+    speed = B38400;
+    ss.flags = (ss.flags & ~ASYNC_SPD_MASK) | ASYNC_SPD_CUST;
+    ss.custom_divisor = (ss.baud_base + (bitrate / 2)) / bitrate;
+    if (ss.custom_divisor < 1) {
+      errno = EINVAL;
+      goto close_and_error;
+    }
+    double actual_bitrate = ((double)ss.baud_base) / ss.custom_divisor;
+    double fractional = (actual_bitrate - bitrate)/bitrate;
+    if (fractional < 0.0) fractional = -fractional;
+    if (fractional > MAX_FRACTIONAL_RATE_DEVIATION) {
+      errno = EINVAL;
+      goto close_and_error;
+    }
+    if (ioctl(fd, TIOCSSERIAL, &ss) < 0)
+      goto close_and_error;
   }
-  double actual_bitrate = ((double)ss.baud_base) / ss.custom_divisor;
-  double fractional = (actual_bitrate - bitrate)/bitrate;
-  if (fractional < 0.0) fractional = -fractional;
-  if (fractional > MAX_FRACTIONAL_RATE_DEVIATION) {
-    errno = EINVAL;
-    goto close_and_error;
-  }
-  if (ioctl(fd, TIOCSSERIAL, &ss) < 0)
-    goto close_and_error;
 #elif defined(__FreeBSD__) || defined(__APPLE__)
   // In BSD, the speed is arbitrary and simple to configure
   speed = bitrate;
@@ -112,9 +125,12 @@ static int io_serial_open(const char *location, int flags, tlio_logger *logger)
     goto close_and_error;
 
   // Set exclusive access, so that someone does not accidentally open
-  // the same serial port twice.
-  if (ioctl(fd, TIOCEXCL, NULL) != 0)
-    goto close_and_error;
+  // the same serial port twice. Does not work in WSL.
+  if (ioctl(fd, TIOCEXCL, NULL) != 0) {
+    tlio_logf(logger, fd, "io_serial: failed to set exclusive access to port. "
+              "Continuing. Not suported in Windows.");
+//    goto close_and_error;
+  }
 
   // Write a terminator character just in case there was a partial packet
   // buffered on the other side.
@@ -135,6 +151,11 @@ static int io_serial_open(const char *location, int flags, tlio_logger *logger)
   if (!(flags & O_NONBLOCK)) {
     tios.c_cc[VMIN] = 1;
     if (tcsetattr(fd, TCSANOW, &tios) != 0)
+      goto close_and_error;
+    int flags = fcntl(fd, F_GETFL, 0);
+    if (flags == -1)
+      goto close_and_error;
+    if (fcntl(fd, F_SETFL, flags & ~O_NONBLOCK) == -1)
       goto close_and_error;
   }
 
