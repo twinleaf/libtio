@@ -66,8 +66,10 @@ typedef struct tl_packet tl_packet;
 #define TL_PTYPE_RPC_REQ     2 // RPC request
 #define TL_PTYPE_RPC_REP     3 // RPC reply
 #define TL_PTYPE_RPC_ERROR   4 // RPC error
-#define TL_PTYPE_STREAMDESC  5 // Description of data in a stream
-#define TL_PTYPE_HEARTBEAT   6
+#define TL_PTYPE_HEARTBEAT   5 // NOP heartbeat
+#define TL_PTYPE_TIMEBASE    6 // Update to a timebase's parameters
+#define TL_PTYPE_PSTREAM     7 // Update to a pstream's parameters
+#define TL_PTYPE_DSTREAM     8 // Update to a dstream's parameters
 #define TL_PTYPE_USER       64
 
 #define TL_PTYPE_STREAM0   128 // First data stream
