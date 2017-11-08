@@ -62,7 +62,6 @@ typedef struct tl_timebase_update_packet tl_timebase_update_packet;
 struct tl_pstream_info {
   uint16_t id;
   uint16_t timebase_id;
-  uint64_t next_sample;
   uint32_t period;
   uint32_t offset;
   int32_t fmt;
