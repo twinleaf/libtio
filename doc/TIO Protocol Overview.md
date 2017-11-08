@@ -118,6 +118,18 @@ the device tree:
 Routing behavior is the same regardless of the packet type or payload, so
 below only the payload section is described.
 
+The types are:
+
+TL_PTYPE_NONE       = 0
+TL_PTYPE_INVALID    = 0
+TL_PTYPE_LOG        = 1
+TL_PTYPE_RPC_REQ    = 2
+TL_PTYPE_RPC_REP    = 3
+TL_PTYPE_RPC_ERROR  = 4
+TL_PTYPE_STREAMDESC = 5
+TL_PTYPE_USER       = 6
+TL_PTYPE_STREAM0    = 128
+
 ### LogMessages
 
 Log messages use type TL_PTYPE_LOG, and the packet is defined
