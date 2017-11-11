@@ -81,16 +81,31 @@ struct tl_pstream_update_packet {
 } __attribute__((__packed__));
 typedef struct tl_pstream_update_packet tl_pstream_update_packet;
 
-/*
-TODO: dstream
-struct tl_dstream_info {
-};
+
+#define TL_DSTREAM_COMPONENT_RESAMPLED 0x1
 
 struct tl_dstream_component_info {
   uint16_t pstream_id;
-  uint32_t subsampling;
-  // offset?? what else??
-};
+  uint16_t flags;
+  uint32_t period;
+  uint32_t offset;
+} __attribute__((__packed__));
+typedef struct tl_dstream_component_info tl_dstream_component_info;
+
+struct tl_dstream_info {
+  uint16_t id;
+  uint16_t timebase_id;
+  uint32_t period;
+  uint32_t offset;
+  uint16_t total_components;
+  uint16_t cinfo_start;
+  uint16_t cinfo_len;
+  uint16_t flags;
+} __attribute__((__packed__));
+typedef struct tl_dstream_info tl_dstream_info;
+
+#define TL_DSTREAM_MAX_ID 127
+#define TL_DSTREAM_MAX_UPDATE_COMPONENTS 40
 
 struct tl_dstream_update_packet {
   tl_packet_header hdr;
@@ -98,75 +113,6 @@ struct tl_dstream_update_packet {
   tl_dstream_component_info component[TL_DSTREAM_MAX_UPDATE_COMPONENTS];
 } __attribute__((__packed__));
 typedef struct tl_dstream_update_packet tl_dstream_update_packet;
-*/
-
-//////////////////////////////////////
-// Data stream flags, timestamp types
-
-// Desc sent out before first sample
-#define TL_DATA_STREAM_FIRST        0x01
-// This acquisition was completed (there will be no more data)
-#define TL_DATA_STREAM_STOPPED      0x02
-
-
-// Timestamp relative to the beginning of the data acquisition (always zero)
-#define TL_DATA_STREAM_TSTAMP_ZERO      0
-// Timestamp relative to device boot using device timebase
-#define TL_DATA_STREAM_TSTAMP_DEV       1
-// Timestamp is relative to a device upstream in the sensor tree
-#define TL_DATA_STREAM_TSTAMP_UPSTREAM  2
-// Timestamp is UNIX time (!= time since UNIX epoch. no leap seconds)
-#define TL_DATA_STREAM_TSTAMP_UNIX      3
-
-struct tl_data_stream_desc_header {
-  // Version of the header packet (for backwards compatibility. now always 0)
-  uint16_t version;
-
-  // Stream ID described by these parameters
-  uint16_t stream_id;
-
-  // Start timestamp, in ns (epoch depends on flags)
-  uint64_t start_timestamp;
-
-  // Sample number of the last sample in the last packet sent,
-  // or of the next packet if FIRST flag is set (in that case, it is
-  // not guaranteed that it won't skip)
-  uint64_t sample_counter;
-
-  // Sampling period, in us
-  uint32_t period_numerator;
-  uint32_t period_denominator;
-
-  // Flags first or stopped, defined above
-  uint8_t flags;
-
-  // Timestamp type, defined above
-  uint8_t tstamp_type;
-
-  // Arbitrary ID that changes when an acquisition is restarted for this stream
-  uint16_t restart_id;
-
-  // Size of a sample
-  uint16_t sample_size;
-
-  // Fundamental data type for the data (every channel in a sample has the
-  // same type)
-  uint8_t type;
-
-  // Number of channels in a sample.
-  uint8_t channels;
-} __attribute__((__packed__));
-typedef struct tl_data_stream_desc_header tl_data_stream_desc_header;
-
-#define TL_DATA_STREAM_MAX_NAME_LEN \
-  (TL_PACKET_MAX_PAYLOAD_SIZE - sizeof(tl_data_stream_desc_header))
-
-struct tl_data_stream_desc_packet {
-  tl_packet_header hdr;
-  tl_data_stream_desc_header desc;
-  char name[TL_DATA_STREAM_MAX_NAME_LEN]; // not null terminated
-} __attribute__((__packed__));
-typedef struct tl_data_stream_desc_packet tl_data_stream_desc_packet;
 
 #define TL_DATA_STREAM_MAX_PAYLOAD_SIZE \
   (TL_PACKET_MAX_PAYLOAD_SIZE - sizeof(uint32_t))
