@@ -41,15 +41,15 @@ struct tl_timebase_info {
   uint8_t source;
   uint8_t epoch;
   uint64_t start_time;
-  uint8_t src_param[16];
-  uint32_t flags;
   uint32_t period_num_us;
   uint32_t period_denom_us;
-  uint16_t stability_ppb; //0xFFFF = unspecified or >= 65.5 ppm
+  uint32_t flags;
+  float stability; // positive or nan
+  uint8_t source_id[16];
 } __attribute__((__packed__));
 typedef struct tl_timebase_info tl_timebase_info;
 
-
+// Sent out when a timebase changes, or by user request
 struct tl_timebase_update_packet {
   tl_packet_header hdr;
   tl_timebase_info info;
@@ -74,6 +74,7 @@ typedef struct tl_pstream_info tl_pstream_info;
 #define TL_PSTREAM_MAX_NAME_LEN \
   (TL_RPC_REPLY_MAX_PAYLOAD_SIZE - sizeof(tl_pstream_info))
 
+// Sent out when a pstream is created or deleted, or by user request
 struct tl_pstream_update_packet {
   tl_packet_header hdr;
   tl_pstream_info info;
@@ -92,11 +93,14 @@ struct tl_dstream_component_info {
 } __attribute__((__packed__));
 typedef struct tl_dstream_component_info tl_dstream_component_info;
 
+#define TL_DSTREAM_DELETED 0x1
+
 struct tl_dstream_info {
   uint16_t id;
   uint16_t timebase_id;
   uint32_t period;
   uint32_t offset;
+  uint64_t sample_number; // 64 bit sample number
   uint16_t total_components;
   uint16_t cinfo_start;
   uint16_t cinfo_len;
@@ -105,8 +109,9 @@ struct tl_dstream_info {
 typedef struct tl_dstream_info tl_dstream_info;
 
 #define TL_DSTREAM_MAX_ID 127
-#define TL_DSTREAM_MAX_UPDATE_COMPONENTS 40
+#define TL_DSTREAM_MAX_UPDATE_COMPONENTS 32
 
+// Sent out when a dstream changes, or by user request
 struct tl_dstream_update_packet {
   tl_packet_header hdr;
   tl_dstream_info info;

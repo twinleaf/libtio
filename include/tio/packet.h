@@ -118,7 +118,7 @@ int tl_parse_routing(uint8_t *routing, const char *routing_path);
 
 #define TL_ROUTING_FMT_BUF_SIZE (TL_PACKET_MAX_ROUTING_SIZE * 4 + 2)
 int tl_format_routing(uint8_t *routing, size_t routing_size,
-                      char *buf, size_t buf_size);
+                      char *buf, size_t buf_size, int root_slash);
 
 //////////////////////////////////////
 // Implementation of inline methods
