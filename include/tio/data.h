@@ -93,7 +93,9 @@ struct tl_dstream_component_info {
 } __attribute__((__packed__));
 typedef struct tl_dstream_component_info tl_dstream_component_info;
 
-#define TL_DSTREAM_DELETED 0x1
+#define TL_DSTREAM_ACTIVE    0x1
+#define TL_DSTREAM_ONLY_INFO 0x2
+#define TL_DSTREAM_DELETED   0x4
 
 struct tl_dstream_info {
   uint16_t id;
