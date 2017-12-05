@@ -104,8 +104,6 @@ struct tl_dstream_info {
   uint32_t offset;
   uint64_t sample_number; // 64 bit sample number
   uint16_t total_components;
-  uint16_t cinfo_start;
-  uint16_t cinfo_len;
   uint16_t flags;
 } __attribute__((__packed__));
 typedef struct tl_dstream_info tl_dstream_info;
