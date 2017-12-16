@@ -38,11 +38,11 @@ int tl_parse_routing(uint8_t *routing, const char *routing_path)
 }
 
 int tl_format_routing(uint8_t *routing, size_t routing_size,
-                      char *buf, size_t buf_size)
+                      char *buf, size_t buf_size, int root_slash)
 {
   if (routing_size > TL_PACKET_MAX_ROUTING_SIZE)
     return -1;
-  int slash = 0;
+  int slash = !root_slash;
   while ((routing_size > 0) && (buf_size > 0)) {
     unsigned n = routing[--routing_size];
     int ret = snprintf(buf, buf_size, "/%u", n);
