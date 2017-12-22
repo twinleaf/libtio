@@ -1,10 +1,8 @@
-Twinleaf I/O (TIO) Protocol
-===========================
+# Twinleaf I/O (TIO) Protocol
 
 This document is intended to be an overview of the TIO protocol. At the moment, the libtio C library shall be the reference implementation.
 
-Overview
---------
+## Overview
 
 Communication with Twinleaf sensors and other devices occurs by exchanging
 packets using the protocol outlined below.
@@ -12,40 +10,41 @@ Devices are connected topologically in a tree structure. Hubs are nodes of
 the tree that support additional devices to be connected under them.
 Let's use this topology as an example
 
+```
   PROXY
     |
-    +- TIMv1 (0)
+    +- TIM (0)
     |     |
-    |     +- VM4 (0)
+    |     +- VMR (0)
     |     |
     |     +- [Nothing connected]
     |     |
-    |     +- VM4 (2)
+    |     +- VMR (2)
     |
-    +- VM4 (1)
+    +- VMR (1)
+```
 
 A user communicates directly only with the root of the sensor tree, but can
 reach any device in the tree by routing a packet to a specific device.
 Routing is specified as a path using numerical IDs to reach a particular node.
 In the example above, these are all the devices and their routing paths:
 
-| Device | Routing Path |
-|--------|--------------|
-|PROXY   | /            |
-|TIMv1   | /0/          |
-|VM4     | /0/0/        |
-|VM4     | /0/2/        |
-|VM4     | /1/          |
+Device  | Routing Path 
+--------|--------------
+PROXY   | /            
+TIM     | /0/          
+VMR     | /0/0/        
+VMR     | /0/2/        
+VMR     | /1/          
 
-Any packet that needs to be sent to the second VM4 connected to the TIM for
+Any packet that needs to be sent to the second VMR connected to the TIM for
 example, will need to be routed to /0/2/, and likewise any packet coming
 from that sensor will have routing path set to /0/2.
 
 A node can have at most 256 branches below, and the maximum depth of a device
 is 8 levels below the root.
 
-Communication patterns
-----------------------
+## Communication patterns
 
 There are only a handful of ways in which communication with devices occurs.
 In all cases, there is no direct communication between devices, only between
@@ -70,11 +69,11 @@ know some static information about the stream to interpret this data
 (like data type, channels, sampling period, etc), and that information is
 sent out before the stream starts in a stream description packet.
 
-Packet format
--------------
+## Packet format
 
 ### Header and routing
 
+```
  0                   1                   2                   3
   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -86,6 +85,7 @@ Packet format
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
   |                       Routing (R bytes)                       |
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```
 
 A packet consists of a 4 byte header, followed by the payload, followed by
 the routing information. The header gives the packet type, the size of the
@@ -107,34 +107,35 @@ R will be 2, and routing will consist of two bytes, 0x02 0x00.
 
 The reason why the path is reversed is due to how the routing works within
 the device tree:
+
 - when a device receives a packet from its parent node, it will look at R and
- - if R=0 process the packet
- - if R>0 remove the last byte of routing data, decrement R, and send that
-   packet down the tree on the port specified by the removed byte.
-- when a device receives a packet from one if its children, it will append
-  the port to which that child is connected, and increment R before sending
-  it to its parent.
+  - if R=0 process the packet
+  - if R>0 remove the last byte of routing data, decrement R, and send that packet down the tree on the port specified by the removed byte.
+- when a device receives a packet from one if its children, it will append the port to which that child is connected, and increment R before sending it to its parent.
 
 Routing behavior is the same regardless of the packet type or payload, so
 below only the payload section is described.
 
 The types are:
 
-TL_PTYPE_NONE       = 0
-TL_PTYPE_INVALID    = 0
-TL_PTYPE_LOG        = 1
-TL_PTYPE_RPC_REQ    = 2
-TL_PTYPE_RPC_REP    = 3
-TL_PTYPE_RPC_ERROR  = 4
-TL_PTYPE_STREAMDESC = 5
-TL_PTYPE_USER       = 6
-TL_PTYPE_STREAM0    = 128
+Packet Type         | byte  
+--------------------|----
+TL_PTYPE_NONE       | 0
+TL_PTYPE_INVALID    | 0
+TL_PTYPE_LOG        | 1
+TL_PTYPE_RPC_REQ    | 2
+TL_PTYPE_RPC_REP    | 3
+TL_PTYPE_RPC_ERROR  | 4
+TL_PTYPE_STREAMDESC | 5
+TL_PTYPE_USER       | 6
+TL_PTYPE_STREAM0    | 128
 
 ### LogMessages
 
 Log messages use type TL_PTYPE_LOG, and the packet is defined
 in twinleaf/log.h as tl_log_packet.
 
+```
  0                   1                   2                   3
   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -146,6 +147,7 @@ in twinleaf/log.h as tl_log_packet.
   =                      (until end of payload)                   =
   |                                                               |
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```
 
 log.data is some arbitrary numerical data in 32 bit unsigned format.
 log.type is one of the constants from log.h detailing what kind of message
@@ -156,6 +158,7 @@ is being sent out (debug, info, warning, error).
 RPC requests use type TL_PTYPE_RPC_REQ (2), and the packet is defined
 in twinleaf/rpc.h as tl_rpc_request_packet.
 
+```
  0                   1                   2                   3
   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -169,6 +172,7 @@ in twinleaf/rpc.h as tl_rpc_request_packet.
   =                         (0+ bytes)                            =
   |                                                               |
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```
 
 Request ID is a randomly assigned 2-byte value returned with the corresponding
 reply (allowing for asynchronous RPCs).
@@ -182,6 +186,7 @@ RPC Payload (optional): Comes after the name, if any, or the method ID. This wou
 RPC replies use type TL_PTYPE_RPC_REP (3), and the packet is defined
 in twinleaf/rpc.h as tl_rpc_reply_packet.
 
+```
  0                   1                   2                   3
   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -191,6 +196,7 @@ in twinleaf/rpc.h as tl_rpc_reply_packet.
   =                         (0+ bytes)                            =
   |                                                               |
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```
 
 Request ID matches the one from the request. Payload depends on the specific
 RPC that was called. Receiving this packet implies the RPC was successful.
@@ -200,6 +206,7 @@ RPC that was called. Receiving this packet implies the RPC was successful.
 RPC requests use type TL_PTYPE_RPC_ERROR, and the packet is defined
 in twinleaf/rpc.h as tl_rpc_error_packet.
 
+```
  0                   1                   2                   3
   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -209,6 +216,7 @@ in twinleaf/rpc.h as tl_rpc_error_packet.
   =                         (0+ bytes)                            =
   |                                                               |
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```
 
 Request ID matches the one from the request. Receving this packet means the
 RPC failed. See error codes in rpc.h. Payload depends on the specific error,
@@ -216,12 +224,16 @@ and most of the time is either empty or a more detailed error string.
 
 ### Published data
 
+*TODO: Describe streaming changes in v3.*
+
 Uses types TL_PTYPE_STREAM(N), for 0 <= N < 128, and the packet is defined
 in twinleaf/data.h as tl_data_stream_packet.
 
+```
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+} {-+
   | Sample #  |           Data                 |
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+} {-+
+```
 
 Sample #: This is the low 32 bit of the sample number of the first sample
 in the packet (so the sample number wraps to zero after sample 2^32-1).
@@ -236,6 +248,7 @@ in twinleaf/data.h as tl_data_stream_desc_packet.
 
 Payload consists of this struct (TODO: diagram):
 
+```
 struct tl_data_stream_desc_header {
   // Stream ID described by these parameters
   uint8_t stream_id;
@@ -267,12 +280,12 @@ struct tl_data_stream_desc_header {
   uint8_t flags;
   uint8_t tstamp_type;
 } __attribute__((__packed__));
+```
 
 followed by a textual name for the stream (not null terminated).
 
 
-Protocol specific encoding
---------------------------
+## Protocol specific encoding
 
 Remember: all multibyte fields are serialized in little endian.
 On a BE machine, byte order must be reversed.
@@ -284,16 +297,20 @@ to deserialize the stream at packet boundaries.
 When sending over serial, compute the CRC32 of the packet and append it to it,
 then SLIP encode the whole thing, and send it on the wire.
 
+```
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+} {-+-+-+-+-//-+-+-+-+-+-+
   |SLIP_END |    SLIP encoded packet           | CRC32    |SLIP_END |
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+} {-+-+-+-+-//-+-+-+-+-+-+
+```
 
 SLIP ENCODING wraps packets on the serial line. SLIP is defined in RFC 1055. In summary, SLIP means that binary or ASCII data is sent raw over the wire in blocks seperated by SLIP_END bytes. When the SLIP_END byte occurs in the raw message, it is escaped using SLIP_ESC and SLIP_ESC_END; likewise for SLIP_ESC and SLIP_ESC_ESC. The process is reversed at the receiving end. The SLIP ASCII codes (in hex) are:
 
-    SLIP_END        0xC0
-    SLIP_ESC        0xDB
-    SLIP_ESC_END    0xDC
-    SLIP_ESC_ESC    0xDD
+Control Code   | hex
+---------------|-----
+SLIP_END       | 0xC0
+SLIP_ESC       | 0xDB
+SLIP_ESC_END   | 0xDC
+SLIP_ESC_ESC   | 0xDD
 
 Preceeding an END byte just before every message is optional; zero-length messages should be ignored.
 
