@@ -6,7 +6,7 @@ The repository also contains a reference document for the [TIO Protocol](https:/
 
 ## Prerequisites
 
-[libtio](https://github.com/twinleaf/libtio) is an included submodule. Be sure to run `git submodule update --init` after cloning this repository. The tools compile and run with no dependencies on standard POSIX systems:
+The library compiles with no dependencies on standard POSIX systems:
 
   - Linux
   - macOS
@@ -14,4 +14,4 @@ The repository also contains a reference document for the [TIO Protocol](https:/
 
 ## Programming
 
-A sockets interface to the sensors is provided. Please review examples and the code to understand its use.
+A sockets interface to the sensors is provided. Please review examples in [TIO Protocol](https://github.com/twinleaf/tio-tools) to understand its use.
