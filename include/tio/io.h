@@ -1,4 +1,4 @@
-// Copyright: 2016 Twinleaf LLC
+// Copyright: 2016-2018 Twinleaf LLC
 // Author: gilberto@tersatech.com
 // License: Proprietary
 
@@ -51,6 +51,11 @@ typedef void tlio_logger(int fd, const char *message);
 //    tcp://host.twinleaf.com:12345/
 // Port is optional, and if omitted will default to
 #define TL_TCP_DEFAULT_PORT 7855
+//
+// Similarly, UDP can be used with an URL like this
+//    udp://host.twinleaf.com:12345/
+// where port is optional and will default to
+#define TL_UDP_DEFAULT_PORT 7855
 //
 int tlopen(const char *url, int flags, tlio_logger *logger);
 
