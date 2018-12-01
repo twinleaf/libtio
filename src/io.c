@@ -1,4 +1,4 @@
-// Copyright: 2016 Twinleaf LLC
+// Copyright: 2016-2018 Twinleaf LLC
 // Author: gilberto@tersatech.com
 // License: Proprietary
 
@@ -17,6 +17,7 @@
 
 extern struct io_vtable tl_io_serial_vtable;
 extern struct io_vtable tl_io_tcp_vtable;
+extern struct io_vtable tl_io_udp_vtable;
 
 static struct {
   const char *protocol;
@@ -24,6 +25,7 @@ static struct {
 } io_vtables[] = {
   {"serial", &tl_io_serial_vtable},
   {"tcp", &tl_io_tcp_vtable},
+  {"udp", &tl_io_udp_vtable},
   {NULL, NULL}
 };
 
