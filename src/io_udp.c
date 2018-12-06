@@ -14,6 +14,18 @@
 #include <errno.h>
 #include <fcntl.h>
 
+#ifndef MSG_NOSIGNAL
+#ifdef __APPLE__
+// Sadly, OS X does not implement POSIX.1-2008's MSG_NOSIGNAL at this time,
+// so define it manually as zero and set SO_NOSIGPIPE in fdopen. Note:
+// it's not present in linux, so there is no way to use this way for both.
+#define MSG_NOSIGNAL 0
+#define SET_NOSIGPIPE_SOCK_OPTION 1
+#else
+#error MSG_NOSIGNAL is missing
+#endif
+#endif
+
 #define QUOTE(str) #str
 #define EXPAND_AND_QUOTE(str) QUOTE(str)
 
@@ -99,6 +111,10 @@ static int io_udp_open(const char *location, int flags, tlio_logger *logger)
 
 static int io_udp_fdopen(fd_overlay_t *fdo, int fd)
 {
+#if SET_NOSIGPIPE_SOCK_OPTION
+  int one = 1;
+  setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
+#endif
   fdo->state = NULL;
   return fd;
 }
@@ -142,6 +158,8 @@ static int io_udp_send(fd_overlay_t *fdo, int fd, const void *packet,
 {
   (void) fdo;
 
+  // There appears to be edge cases where you can get a SIGPIPE on a UDP
+  // socket, so suppress that just in case.
   ssize_t ret = send(fd, packet, pktsize, MSG_NOSIGNAL);
   if (ret < 0)
     return -1;
