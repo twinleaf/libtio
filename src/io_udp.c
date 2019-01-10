@@ -97,6 +97,10 @@ static int io_udp_open(const char *location, int flags, tlio_logger *logger)
       return -1;
   }
 
+  // Allow broadcast.
+  int one = 1;
+  setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &one, sizeof(one));
+
   // connect (i.e. set the remote address to the desired one and bind
   // to an arbitrary port)
   if (connect(sock, ai.ai_addr, ai.ai_addrlen) == -1) {
