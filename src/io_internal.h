@@ -1,6 +1,6 @@
 // Copyright: 2016 Twinleaf LLC
 // Author: gilberto@tersatech.com
-// License: Proprietary
+// License: MIT
 
 // Internal I/O declarations.
 // Convenient logging method.

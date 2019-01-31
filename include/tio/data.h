@@ -1,6 +1,6 @@
 // Copyright: 2016 Twinleaf LLC
 // Author: gilberto@tersatech.com
-// License: Proprietary
+// License: MIT
 
 #ifndef TL_DATA_H
 #define TL_DATA_H

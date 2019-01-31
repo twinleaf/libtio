@@ -1,6 +1,6 @@
 // Copyright: 2016 Twinleaf LLC
 // Author: gilberto@tersatech.com
-// License: Proprietary
+// License: MIT
 
 #ifndef TL_ERROR_DETECTION_CODES_H
 #define TL_ERROR_DETECTION_CODES_H

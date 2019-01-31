@@ -1,6 +1,6 @@
 // Copyright: 2016 Twinleaf LLC
 // Author: gilberto@tersatech.com
-// License: Proprietary
+// License: MIT
 
 // Functions to serialize/deserialize packets using the twinleaf native
 // serial link-layer protocol.

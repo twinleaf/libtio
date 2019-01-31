@@ -1,6 +1,6 @@
 // Copyright: 2016 Twinleaf LLC
 // Author: gilberto@tersatech.com
-// License: Proprietary
+// License: MIT
 
 // Structures, constants, and helpers for logging related packets.
 

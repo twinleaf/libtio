@@ -1,6 +1,6 @@
 // Copyright: 2016-2017 Twinleaf LLC
 // Author: gilberto@tersatech.com
-// License: Proprietary
+// License: MIT
 
 // Structures, constants, and helpers for RPC related packets.
 

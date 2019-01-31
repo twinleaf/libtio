@@ -1,6 +1,6 @@
 // Copyright: 2016 Twinleaf LLC
 // Author: gilberto@tersatech.com
-// License: Proprietary
+// License: MIT
 
 // Platform-independent packet-related structures and constants for native
 // packets in TL firmwares. Packets are comprised of a header, followed

@@ -1,6 +1,6 @@
 # Copyright: 2016 Twinleaf LLC
 # Author: gilberto@tersatech.com
-# License: Proprietary
+# License: MIT
 
 CCFLAGS = -g -Wall -Wextra -Iinclude/ -std=gnu11
 

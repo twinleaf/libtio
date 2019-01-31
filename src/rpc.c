@@ -1,6 +1,6 @@
 // Copyright: 2016-2017 Twinleaf LLC
 // Author: gilberto@tersatech.com
-// License: Proprietary
+// License: MIT
 
 #include <tio/rpc.h>
 #include <tio/io.h>

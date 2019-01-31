@@ -1,6 +1,6 @@
 // Copyright: 2016-2018 Twinleaf LLC
 // Author: gilberto@tersatech.com
-// License: Proprietary
+// License: MIT
 
 // API providing send/recv interface to communicate with sensors seamlessly
 // over all the supported protocols.
