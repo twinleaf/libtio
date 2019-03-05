@@ -57,9 +57,9 @@ struct tl_timebase_update_packet {
 typedef struct tl_timebase_update_packet tl_timebase_update_packet;
 
 
-#define TL_PSTREAM_DELETED 1
+#define TL_SOURCE_DELETED 1
 
-struct tl_pstream_info {
+struct tl_source_info {
   uint16_t id;
   uint16_t timebase_id;
   uint32_t period;
@@ -69,35 +69,35 @@ struct tl_pstream_info {
   uint16_t channels;
   uint8_t type;
 } __attribute__((__packed__));
-typedef struct tl_pstream_info tl_pstream_info;
+typedef struct tl_source_info tl_source_info;
 
-#define TL_PSTREAM_MAX_NAME_LEN \
-  (TL_RPC_REPLY_MAX_PAYLOAD_SIZE - sizeof(tl_pstream_info))
+#define TL_SOURCE_MAX_NAME_LEN \
+  (TL_RPC_REPLY_MAX_PAYLOAD_SIZE - sizeof(tl_source_info))
 
-// Sent out when a pstream is created or deleted, or by user request
-struct tl_pstream_update_packet {
+// Sent out when a source is created or deleted, or by user request
+struct tl_source_update_packet {
   tl_packet_header hdr;
-  tl_pstream_info info;
-  char name[TL_PSTREAM_MAX_NAME_LEN]; // not null terminated
+  tl_source_info info;
+  char name[TL_SOURCE_MAX_NAME_LEN]; // not null terminated
 } __attribute__((__packed__));
-typedef struct tl_pstream_update_packet tl_pstream_update_packet;
+typedef struct tl_source_update_packet tl_source_update_packet;
 
 
-#define TL_DSTREAM_COMPONENT_RESAMPLED 0x1
+#define TL_STREAM_COMPONENT_RESAMPLED 0x1
 
-struct tl_dstream_component_info {
-  uint16_t pstream_id;
+struct tl_stream_component_info {
+  uint16_t source_id;
   uint16_t flags;
   uint32_t period;
   uint32_t offset;
 } __attribute__((__packed__));
-typedef struct tl_dstream_component_info tl_dstream_component_info;
+typedef struct tl_stream_component_info tl_stream_component_info;
 
-#define TL_DSTREAM_ACTIVE    0x1
-#define TL_DSTREAM_ONLY_INFO 0x2
-#define TL_DSTREAM_DELETED   0x4
+#define TL_STREAM_ACTIVE    0x1
+#define TL_STREAM_ONLY_INFO 0x2
+#define TL_STREAM_DELETED   0x4
 
-struct tl_dstream_info {
+struct tl_stream_info {
   uint16_t id;
   uint16_t timebase_id;
   uint32_t period;
@@ -106,18 +106,18 @@ struct tl_dstream_info {
   uint16_t total_components;
   uint16_t flags;
 } __attribute__((__packed__));
-typedef struct tl_dstream_info tl_dstream_info;
+typedef struct tl_stream_info tl_stream_info;
 
-#define TL_DSTREAM_MAX_ID 127
-#define TL_DSTREAM_MAX_UPDATE_COMPONENTS 32
+#define TL_STREAM_MAX_ID 127
+#define TL_STREAM_MAX_UPDATE_COMPONENTS 32
 
-// Sent out when a dstream changes, or by user request
-struct tl_dstream_update_packet {
+// Sent out when a stream changes, or by user request
+struct tl_stream_update_packet {
   tl_packet_header hdr;
-  tl_dstream_info info;
-  tl_dstream_component_info component[TL_DSTREAM_MAX_UPDATE_COMPONENTS];
+  tl_stream_info info;
+  tl_stream_component_info component[TL_STREAM_MAX_UPDATE_COMPONENTS];
 } __attribute__((__packed__));
-typedef struct tl_dstream_update_packet tl_dstream_update_packet;
+typedef struct tl_stream_update_packet tl_stream_update_packet;
 
 #define TL_DATA_STREAM_MAX_PAYLOAD_SIZE \
   (TL_PACKET_MAX_PAYLOAD_SIZE - sizeof(uint32_t))

@@ -226,7 +226,7 @@ and most of the time is either empty or a more detailed error string.
 
 *TODO: Describe streaming changes in v3.*
 
-Uses types TL_PTYPE_STREAM(N), for 0 <= N < 128, and the packet is defined
+Uses types TL_PTYPE_STREAMN(N), for 0 <= N < 128, and the packet is defined
 in twinleaf/data.h as tl_data_stream_packet.
 
 ```

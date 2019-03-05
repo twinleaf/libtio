@@ -68,12 +68,12 @@ typedef struct tl_packet tl_packet;
 #define TL_PTYPE_RPC_ERROR   4 // RPC error
 #define TL_PTYPE_HEARTBEAT   5 // NOP/discover heartbeat
 #define TL_PTYPE_TIMEBASE    6 // Update to a timebase's parameters
-#define TL_PTYPE_PSTREAM     7 // Update to a pstream's parameters
-#define TL_PTYPE_DSTREAM     8 // Update to a dstream's parameters
-#define TL_PTYPE_USER       64
+#define TL_PTYPE_SOURCE      7 // Update to a source's parameters
+#define TL_PTYPE_STREAM      8 // Update to a stream's parameters
+#define TL_PTYPE_USER        64
 
 #define TL_PTYPE_STREAM0   128 // First data stream
-#define TL_PTYPE_STREAM(N) (TL_PTYPE_STREAM0 + (N))
+#define TL_PTYPE_STREAMN(N) (TL_PTYPE_STREAM0 + (N))
 
 // Return the total packet size given a valid header.
 static inline size_t tl_packet_total_size(const tl_packet_header *pkt);
