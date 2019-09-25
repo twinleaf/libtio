@@ -1,4 +1,4 @@
-// Copyright: 2016 Twinleaf LLC
+// Copyright: 2016-2019 Twinleaf LLC
 // Author: gilberto@tersatech.com
 // License: MIT
 
@@ -136,16 +136,21 @@ static int io_serial_open(const char *location, int flags, tlio_logger *logger)
   // buffered on the other side.
   unsigned char terminator = TL_SERIAL_SLIP_END;
   write(fd, &terminator, 1);
+  tcdrain(fd);
 
-  // Up to here, the terminal is in nonblocking mode. Clear up any pending
-  // data that is probably junk (partial packets, missing escapes or
-  // terminators). At least on linux, tcdrain does not actually do anything
-  // about the data in the device's buffer, so we must read.
-  {
-    uint8_t drain_buf[128];
-    while (read(fd, drain_buf, sizeof(drain_buf)) > 0) {
-    }
-  }
+  // Flush out any pending input data that is probably junk (partial packets,
+  // missing escapes or terminators).
+#if defined (__linux__)
+  // On linux with a USB serial port, a plain tcflush does not seem to work.
+  // Namely, it seems that a spurious data packet gets delivered after
+  // flushing. Likewise, the issue happens as well if reading in a loop from
+  // the descriptor until there is no more data (note: up to here terminal is
+  // in nonblocking mode).
+  // Experimentally, it seems that adding a usleep(1) before flushing or
+  // reading fixes the issue, but it's not clear what is going on underneath.
+  usleep(1);
+#endif
+  tcflush(fd, TCIFLUSH);
 
   // Now set the terminal to blocking mode if needed
   if (!(flags & O_NONBLOCK)) {
