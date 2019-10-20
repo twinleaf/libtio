@@ -144,17 +144,9 @@ static int io_serial_open(const char *location, int flags, tlio_logger *logger)
     };
     write(fd, reset_buf, sizeof(reset_buf));
   }
+
   // Ensure the data gets sent to the driver
   tcdrain(fd);
-  // Even if it's sent to the driver, for something like FTDI USB->UART,
-  // the data will go over USB but then still need to be serialized via
-  // UART, and then there could be a packet currently serializing on the
-  // device so wait some additional time.
-
-  // 100 bit periods (10 bytes/8N1) for outgoing message, plus allow up to
-  // 1000 bytes (1000 bit periods) to be serialized out before switching
-  // mode, and another millisecond for additional usb delays
-  usleep(1000000ull*(100+1000)/bitrate + 1000);
 
   // Flush out any pending input data that is probably junk (partial packets,
   // missing escapes or terminators).
@@ -170,8 +162,6 @@ static int io_serial_open(const char *location, int flags, tlio_logger *logger)
   // clear out the buffers even with minimal sleep (seems to work with 1us).
   // Here just in case we use 100us as the parameter, but it can be raised
   // if data corruption on startup is observed.
-  // Note that with standard parameters there is an additional 10ms sleep
-  // just above, so it should not be necessary to raise.
   for (;;) {
     usleep(100);
     char drain_buf[1024];
@@ -276,6 +266,24 @@ static int io_serial_recv(fd_overlay_t *fdo, int fd, void *packet_buffer,
     tl_serial_deserializer_ret ret =
       tl_serial_deserialize(state->des, &state->start,
                             state->end);
+
+    if (ret.valid && (ret.error & TL_SERIAL_ERROR_TEXT)) {
+      // Shift text data by 4 and create synthetic header for text packet.
+      if (ret.size + sizeof(tl_packet_header) > bufsize) {
+        errno = ENOMEM;
+        return -1;
+      }
+
+      memcpy(((uint8_t*)packet_buffer) + sizeof(tl_packet_header),
+             ret.data, ret.size);
+      tl_packet_header text_hdr;
+      memset(&text_hdr, 0, sizeof(text_hdr));
+      text_hdr.type = TL_PTYPE_TEXT;
+      text_hdr.payload_size = ret.size;
+      memcpy(packet_buffer, &text_hdr, sizeof(text_hdr));
+
+      return 0;
+    }
 
     int first = !state->parsed_first_packet;
     state->parsed_first_packet = 1;

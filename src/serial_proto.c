@@ -1,10 +1,11 @@
-// Copyright: 2016 Twinleaf LLC
+// Copyright: 2016-2019 Twinleaf LLC
 // Author: gilberto@tersatech.com
 // License: MIT
 
 #include "serial_proto.h"
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 static inline void checked_store(void *buf, size_t buf_size, size_t offset,
                                  uint8_t value)
@@ -101,6 +102,14 @@ tl_serial_deserializer_ret tl_serial_deserialize(tl_serial_deserializer *des,
 
     if (c == TL_SERIAL_SLIP_END) {
       // end of packet delimiter.
+
+      if (des->offset == 0) {
+        // ignore completely empty packet. This is written out as a precaution
+        // at the beginning and when switching between text->binary protocol,
+        // and can be safely ignored
+        continue;
+      }
+
       ret.valid = 1;
       ret.error = des->error & ~TL_SERIAL_FIRST;
       ret.data = des->buf;
@@ -125,6 +134,36 @@ tl_serial_deserializer_ret tl_serial_deserialize(tl_serial_deserializer *des,
           ret.size -= TL_CRC32_SIZE;
       }
       return ret;
+    }
+
+    if ((c == '\n') || (c == '\r')) {
+      // Attempt to detect text mode packets. Valid packets cannot contain
+      // \t, \n, \r, or printable ascii characters in the first three bytes
+      // of the header (by protocol design), whereas text mode packets contain
+      // zero or more printable characters or tabs followed by a \r\n.
+      // Just in case some serial translation occurs, just one of \r or \n
+      // will suffice for parsing.
+      int valid_text = 1;
+      for (size_t i = 0; i < des->offset; i++) {
+        if (!isprint(des->buf[i]) && (des->buf[i] != '\t')) {
+          valid_text = 0;
+          break;
+        }
+      }
+      if (valid_text) {
+        if (des->offset == 0) // ignore empty line or \r\n
+          continue;
+        ret.error = des->error | TL_SERIAL_ERROR_TEXT;
+        ret.size = des->offset;
+        ret.valid = 1;
+        ret.data = des->buf;
+
+        des->offset = 0;
+        des->error = 0;
+        des->esc = 0; // just in case
+
+        return ret;
+      }
     }
 
     if (!des->esc && (c == TL_SERIAL_SLIP_ESC)) {
