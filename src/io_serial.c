@@ -132,23 +132,44 @@ static int io_serial_open(const char *location, int flags, tlio_logger *logger)
 //    goto close_and_error;
   }
 
-  // Write a terminator character just in case there was a partial packet
-  // buffered on the other side.
-  unsigned char terminator = TL_SERIAL_SLIP_END;
-  write(fd, &terminator, 1);
+  // Reset the communication: send a terminator character followed by
+  // an empty heartbeat (hardcoded: header + crc32) + terminator.
+  // This will ensure any partial packet is flushed at the receiver, and
+  // that if in text mode it will switch to binary mode.
+  {
+    uint8_t reset_buf[10] = {
+      TL_SERIAL_SLIP_END,
+      0x05, 0x00, 0x00, 0x00, 0x2e, 0x2f, 0x9a, 0x16,
+      TL_SERIAL_SLIP_END,
+    };
+    write(fd, reset_buf, sizeof(reset_buf));
+  }
+
+  // Ensure the data gets sent to the driver
   tcdrain(fd);
 
   // Flush out any pending input data that is probably junk (partial packets,
   // missing escapes or terminators).
 #if defined (__linux__)
-  // On linux with a USB serial port, a plain tcflush does not seem to work.
-  // Namely, it seems that a spurious data packet gets delivered after
-  // flushing. Likewise, the issue happens as well if reading in a loop from
-  // the descriptor until there is no more data (note: up to here terminal is
-  // in nonblocking mode).
-  // Experimentally, it seems that adding a usleep(1) before flushing or
-  // reading fixes the issue, but it's not clear what is going on underneath.
-  usleep(1);
+  // The linux driver for USB serial port seems to be pretty janky, and
+  // clearing out stale buffered data at the beginning is more involved
+  // than a simple tcflush (see also io_serial_send for other issues
+  // specific to linux).
+  // It seems that after opening the port, waiting a bit is necessary to
+  // be able to clear out stale data. See
+// https://stackoverflow.com/questions/13013387/clearing-the-serial-ports-buffer
+  // Experimentally, it seems that reading instead of just flushing can
+  // clear out the buffers even with minimal sleep (seems to work with 1us).
+  // Here just in case we use 100us as the parameter, but it can be raised
+  // if data corruption on startup is observed.
+  for (;;) {
+    usleep(100);
+    char drain_buf[1024];
+    int ret = read(fd, drain_buf, sizeof(drain_buf));
+    if (ret <= 0)
+      break;
+  }
+  // After the reads, we still do a tcflush like on Mac/BSD.
 #endif
   tcflush(fd, TCIFLUSH);
 
@@ -246,6 +267,24 @@ static int io_serial_recv(fd_overlay_t *fdo, int fd, void *packet_buffer,
       tl_serial_deserialize(state->des, &state->start,
                             state->end);
 
+    if (ret.valid && (ret.error & TL_SERIAL_ERROR_TEXT)) {
+      // Shift text data by 4 and create synthetic header for text packet.
+      if (ret.size + sizeof(tl_packet_header) > bufsize) {
+        errno = ENOMEM;
+        return -1;
+      }
+
+      memcpy(((uint8_t*)packet_buffer) + sizeof(tl_packet_header),
+             ret.data, ret.size);
+      tl_packet_header text_hdr;
+      memset(&text_hdr, 0, sizeof(text_hdr));
+      text_hdr.type = TL_PTYPE_TEXT;
+      text_hdr.payload_size = ret.size;
+      memcpy(packet_buffer, &text_hdr, sizeof(text_hdr));
+
+      return 0;
+    }
+
     int first = !state->parsed_first_packet;
     state->parsed_first_packet = 1;
 
@@ -328,7 +367,29 @@ static int io_serial_send(fd_overlay_t *fdo, int fd, const void *packet,
   }
 
   // send the serialized packet to the device
+#if defined (__linux__)
+  // On linux, there are issues with the serial USB driver (see also
+  // io_serial_open). One such issue is that some times a write will
+  // not result in data going out until another write occurs later.
+  // Not quite sure about the reasons why, but it seems that two writes
+  // back to back fix the problem during limited testing.
+  // Unfortunately it breaks the atomicity of the write.
+  ssize_t ret = write(fd, sbuf, ser_size-1);
+  if (((size_t)ret) == (ser_size - 1)) {
+    ssize_t ret2 = write(fd, sbuf+ser_size-1, 1);
+    if (ret2 < 0) {
+      // not exactly ideal, since the first part got written, revisit if
+      // turns out to be problematic
+      ret = ret2;
+    } else {
+      ret += ret2;
+    }
+  }
+#else
+  // On Mac/BSD, the serial USB driver seems to work properly, so a simple
+  // write will suffice.
   ssize_t ret = write(fd, sbuf, ser_size);
+#endif
   if (ret < 0)
     return -1;
 

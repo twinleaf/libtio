@@ -1,4 +1,4 @@
-// Copyright: 2016 Twinleaf LLC
+// Copyright: 2016-2019 Twinleaf LLC
 // Author: gilberto@tersatech.com
 // License: MIT
 
@@ -64,6 +64,8 @@ void tl_serial_destroy_deserializer(tl_serial_deserializer *des);
 #define TL_SERIAL_ERROR_CRC             0x08
 // The deserialized size exceed the configured size for this deserializer
 #define TL_SERIAL_ERROR_TOOBIG          0x10
+// The deserialized data appears to be text
+#define TL_SERIAL_ERROR_TEXT            0x20
 
 
 // Running the deserializer over some data returns a tl_serial_deserializer_ret

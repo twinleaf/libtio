@@ -1,4 +1,4 @@
-// Copyright: 2016 Twinleaf LLC
+// Copyright: 2016-2019 Twinleaf LLC
 // Author: gilberto@tersatech.com
 // License: MIT
 
@@ -70,7 +70,11 @@ typedef struct tl_packet tl_packet;
 #define TL_PTYPE_TIMEBASE    6 // Update to a timebase's parameters
 #define TL_PTYPE_SOURCE      7 // Update to a source's parameters
 #define TL_PTYPE_STREAM      8 // Update to a stream's parameters
-#define TL_PTYPE_USER        64
+#define TL_PTYPE_RESERVED_0  9 // Disallow packet type equivalent to '\t'
+#define TL_PTYPE_RESERVED_1 10 // Disallow packet type equivalent to '\n'
+#define TL_PTYPE_RESERVED_2 13 // Disallow packet type equivalent to '\r'
+#define TL_PTYPE_TEXT       63 // Synthesized packet with text mode content
+#define TL_PTYPE_USER       64
 
 #define TL_PTYPE_STREAM0   128 // First data stream
 #define TL_PTYPE_STREAMN(N) (TL_PTYPE_STREAM0 + (N))
