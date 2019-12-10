@@ -153,7 +153,7 @@ tl_serial_deserializer_ret tl_serial_deserialize(tl_serial_deserializer *des,
       if (valid_text) {
         if (des->offset == 0) // ignore empty line or \r\n
           continue;
-        ret.error = des->error | TL_SERIAL_ERROR_TEXT;
+        ret.error = (des->error | TL_SERIAL_ERROR_TEXT) & ~TL_SERIAL_FIRST;
         ret.size = des->offset;
         ret.valid = 1;
         ret.data = des->buf;
@@ -191,7 +191,20 @@ tl_serial_deserializer_ret tl_serial_deserialize(tl_serial_deserializer *des,
       if (des->offset || c || !(des->error & TL_SERIAL_FIRST))
         des->buf[des->offset++] = c;
     } else {
-      des->error |= TL_SERIAL_ERROR_TOOBIG;
+      // restart the parser and signal that the packet is too long.
+      // this helps avoiding an infinite loop edge condition, where if a
+      // device restarts mid packet and starts up in text mode, the
+      // heuristic expects to be in binary mode, but will loop inifinitely
+      // waiting for a SLIP_END (which will never happen in text).
+      ret.valid = 1;
+      ret.error = (des->error | TL_SERIAL_ERROR_TOOBIG) & ~TL_SERIAL_FIRST;
+      ret.data = des->buf;
+      ret.size = des->offset;
+      des->offset = 0;
+      // preserve the fact that this is still the first packet,
+      // and also maintain escaping state for the next character.
+      des->error &= TL_SERIAL_FIRST;
+      return ret;
     }
   }
 
