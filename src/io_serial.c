@@ -132,22 +132,6 @@ static int io_serial_open(const char *location, int flags, tlio_logger *logger)
 //    goto close_and_error;
   }
 
-  // Reset the communication: send a terminator character followed by
-  // an empty heartbeat (hardcoded: header + crc32) + terminator.
-  // This will ensure any partial packet is flushed at the receiver, and
-  // that if in text mode it will switch to binary mode.
-  {
-    uint8_t reset_buf[10] = {
-      TL_SERIAL_SLIP_END,
-      0x05, 0x00, 0x00, 0x00, 0x2e, 0x2f, 0x9a, 0x16,
-      TL_SERIAL_SLIP_END,
-    };
-    write(fd, reset_buf, sizeof(reset_buf));
-  }
-
-  // Ensure the data gets sent to the driver
-  tcdrain(fd);
-
   // Flush out any pending input data that is probably junk (partial packets,
   // missing escapes or terminators).
 #if defined (__linux__)
@@ -183,6 +167,22 @@ static int io_serial_open(const char *location, int flags, tlio_logger *logger)
       goto close_and_error;
     if (fcntl(fd, F_SETFL, flags & ~O_NONBLOCK) == -1)
       goto close_and_error;
+  }
+
+  // Reset the communication: send a terminator character followed by
+  // an empty heartbeat (hardcoded: header + crc32) + terminator.
+  // This will ensure any partial packet is flushed at the receiver, and
+  // that if in text mode it will switch to binary mode.
+  {
+    uint8_t reset_buf[10] = {
+      TL_SERIAL_SLIP_END,
+      0x05, 0x00, 0x00, 0x00, 0x2e, 0x2f, 0x9a, 0x16,
+      TL_SERIAL_SLIP_END,
+    };
+
+    write(fd, reset_buf, sizeof(reset_buf));
+    // Ensure the data gets sent to the driver
+    tcdrain(fd);
   }
 
   return fd;
@@ -286,7 +286,9 @@ static int io_serial_recv(fd_overlay_t *fdo, int fd, void *packet_buffer,
     }
 
     int first = !state->parsed_first_packet;
-    state->parsed_first_packet = 1;
+
+    if (ret.valid && ((ret.error & TL_SERIAL_ERROR_TOOBIG) == 0))
+      state->parsed_first_packet = 1;
 
     if (ret.valid) {
       // Often time, the first packet will start mid-stream or have other
@@ -296,7 +298,7 @@ static int io_serial_recv(fd_overlay_t *fdo, int fd, void *packet_buffer,
       if (ret.error && first &&
           ((ret.error & (TL_SERIAL_ERROR_DANGLING_ESC |
                          TL_SERIAL_ERROR_ESC_CODE)) == 0))
-          continue;
+        continue;
 
       if (ret.error || (ret.size > TL_PACKET_MAX_SIZE)) {
         if (ret.error & TL_SERIAL_ERROR_SHORT)
