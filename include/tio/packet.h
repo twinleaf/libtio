@@ -1,4 +1,4 @@
-// Copyright: 2016-2019 Twinleaf LLC
+// Copyright: 2016-2020 Twinleaf LLC
 // Author: gilberto@tersatech.com
 // License: MIT
 
@@ -113,6 +113,10 @@ static inline void tl_packet_set_ttl(tl_packet_header *pkt, unsigned ttl);
 // is not that of a stream data packet
 static inline int tl_packet_stream_id(const tl_packet_header *pkt);
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Parse a null terminated string of the form "/3/1/" into a binary routing
 // encoding (which can be written directly to the routing data of a packet).
 // Leading and trailing '/' optional. routing must point to at least
@@ -123,6 +127,10 @@ int tl_parse_routing(uint8_t *routing, const char *routing_path);
 #define TL_ROUTING_FMT_BUF_SIZE (TL_PACKET_MAX_ROUTING_SIZE * 4 + 2)
 int tl_format_routing(uint8_t *routing, size_t routing_size,
                       char *buf, size_t buf_size, int root_slash);
+
+#ifdef __cplusplus
+}
+#endif
 
 //////////////////////////////////////
 // Implementation of inline methods

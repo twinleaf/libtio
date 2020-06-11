@@ -1,4 +1,4 @@
-// Copyright: 2016-2018 Twinleaf LLC
+// Copyright: 2016-2020 Twinleaf LLC
 // Author: gilberto@tersatech.com
 // License: MIT
 
@@ -18,6 +18,7 @@
 extern struct io_vtable tl_io_serial_vtable;
 extern struct io_vtable tl_io_tcp_vtable;
 extern struct io_vtable tl_io_udp_vtable;
+extern struct io_vtable tl_io_file_vtable;
 
 static struct {
   const char *protocol;
@@ -26,6 +27,7 @@ static struct {
   {"serial", &tl_io_serial_vtable},
   {"tcp", &tl_io_tcp_vtable},
   {"udp", &tl_io_udp_vtable},
+  {"file", &tl_io_file_vtable},
   {NULL, NULL}
 };
 
@@ -181,9 +183,14 @@ int tlopen(const char *url, int flags, tlio_logger *logger)
 
   // Find the end of the location.
   size_t location_len = 0; // location of '/' or '\0' at end of location_start
-  while ((location_start[location_len] != '/') &&
-         (location_start[location_len] != '\0'))
-    ++location_len;
+  if (strncmp(proto_name, "file", proto_len) == 0) {
+    // No routing for files.
+    location_len = strlen(location_start);
+  } else {
+    while ((location_start[location_len] != '/') &&
+           (location_start[location_len] != '\0'))
+      ++location_len;
+  }
 
   // break out routing prefix, will look something like "/1/2/3/"
   const char *routing = NULL;
