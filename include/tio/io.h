@@ -1,4 +1,4 @@
-// Copyright: 2016-2018 Twinleaf LLC
+// Copyright: 2016-2021 Twinleaf LLC
 // Author: gilberto@tersatech.com
 // License: MIT
 
@@ -62,6 +62,13 @@ int tlopen(const char *url, int flags, tlio_logger *logger);
 // Use a descriptor already opened for I/O with a twinleaf sensor. Note that
 // you still need to specify a valid protocol as in tlopen(). Returns fd, or -1
 // in case of error.
+//
+// In addition to the protocol above, here 'ws' can be specified,
+// to get a server side tio websocket endpoint. The descriptor must
+// be for a tcp socket for which the websocket handshake is aready
+// completed. By default, the proxy will listen on this port for ws:
+#define TL_WS_DEFAULT_PORT  7853
+//
 int tlfdopen(int fd, const char *protocol, const char *routing,
              tlio_logger *logger);
 

@@ -1,4 +1,4 @@
-// Copyright: 2016-2020 Twinleaf LLC
+// Copyright: 2016-2021 Twinleaf LLC
 // Author: gilberto@tersatech.com
 // License: MIT
 
@@ -17,6 +17,7 @@
 
 extern struct io_vtable tl_io_serial_vtable;
 extern struct io_vtable tl_io_tcp_vtable;
+extern struct io_vtable tl_io_ws_vtable;
 extern struct io_vtable tl_io_udp_vtable;
 extern struct io_vtable tl_io_file_vtable;
 
@@ -26,6 +27,7 @@ static struct {
 } io_vtables[] = {
   {"serial", &tl_io_serial_vtable},
   {"tcp", &tl_io_tcp_vtable},
+  {"ws", &tl_io_ws_vtable},
   {"udp", &tl_io_udp_vtable},
   {"file", &tl_io_file_vtable},
   {NULL, NULL}
@@ -223,6 +225,12 @@ int tlopen(const char *url, int flags, tlio_logger *logger)
         (memcmp(proto_name, io_vtables[id].protocol, len) == 0)) {
       // we found the protocol
       io_vtable *vt = io_vtables[id].vtable;
+      if (!vt->io_open) {
+        // Some protocol (websocket) cannot open new descriptors.
+        // For these, io_open is null.
+        errno = EINVAL;
+        return -1;
+      }
       int fd = vt->io_open(location, flags, logger);
       if (fd < 0)  // an error occurred, leave errno to whatever it was set to
         return -1;

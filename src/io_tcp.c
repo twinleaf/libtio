@@ -1,4 +1,4 @@
-// Copyright: 2016 Twinleaf LLC
+// Copyright: 2016-2021 Twinleaf LLC
 // Author: gilberto@tersatech.com
 // License: MIT
 
@@ -30,7 +30,7 @@
 #define EXPAND_AND_QUOTE(str) QUOTE(str)
 
 struct tcp_state {
-  uint8_t rx_buf[TL_PACKET_MAX_SIZE];
+  uint8_t rx_buf[TL_PACKET_MAX_SIZE+8]; // allow for header+mask for websockets
   size_t in_buf;
 };
 typedef struct tcp_state tcp_state;
@@ -242,5 +242,117 @@ io_vtable tl_io_tcp_vtable = {
   io_tcp_close,
   io_tcp_recv,
   io_tcp_send,
+  io_tcp_drain
+};
+
+////////////////////////////////////////////////////////
+// Minimal WebSocket server side implementation.
+
+static int io_ws_recv(fd_overlay_t *fdo, int fd, void *packet_buffer,
+                      size_t bufsize)
+{
+  tcp_state *state = (tcp_state*) fdo->state;
+
+  while (state->in_buf < 4) {
+    // Technically most frames have a 2 byte header, but it could be up to
+    // 4, and there is always a tio packet following, so require 4 bytes
+    // to proceed.
+    errno = 0;
+    ssize_t ret = read(fd, state->rx_buf + state->in_buf, 4 - state->in_buf);
+
+    if (ret <= 0)
+      return -1;
+    else
+      state->in_buf += ret;
+  }
+
+  // Basic checks
+  size_t psize = state->rx_buf[1] & 0x7F; // preliminary payload size
+  if ((state->rx_buf[0] != 0x82) || // must be binary, single frame
+      !(state->rx_buf[1] & 0x80) || // must be masked
+      (psize == 127) || // no support for 64 bit frames
+      (psize > TL_PACKET_MAX_SIZE)) {
+    state->in_buf = 0;
+    errno = EPROTO;
+    return -1;
+  }
+
+  // Determine header & payload size
+  size_t hsize = 2;
+  if (psize > 125) {
+    hsize = 4;
+    psize = state->rx_buf[3] | (state->rx_buf[2] << 8);
+  }
+
+  // need header + mask + payload
+  while (state->in_buf < (hsize + 4 + psize)) {
+    ssize_t ret = read(fd, state->rx_buf + state->in_buf,
+                       hsize + 4 + psize - state->in_buf);
+
+    if (ret <= 0)
+      return ret;
+    else
+      state->in_buf += ret;
+  }
+
+  // Undo masking for header, and sanity check.
+  uint8_t *mask = state->rx_buf + hsize;
+  uint8_t *mpacket = mask + 4;
+
+  union {
+    uint8_t bytes[4];
+    tl_packet_header hdr;
+  } tmp;
+  for (size_t i = 0; i < 4; i++)
+    tmp.bytes[i] = mpacket[i] ^ mask[i];
+
+  if ((psize != tl_packet_total_size(&tmp.hdr)) ||
+      (tl_packet_routing_size(&tmp.hdr) > TL_PACKET_MAX_ROUTING_SIZE)) {
+    state->in_buf = 0;
+    errno = EPROTO;
+    return -1;
+  }
+
+  //Copy to the user
+  state->in_buf = 0;
+
+  if (psize > bufsize) {
+    errno = ENOMEM;
+    return -1;
+  }
+
+  uint8_t *dest = (uint8_t*) packet_buffer;
+  for (size_t i = 0; i < psize; i++)
+    dest[i] = mpacket[i] ^ mask[i&3];
+
+  return 0;
+}
+
+static int io_ws_send(fd_overlay_t *fdo, int fd, const void *packet,
+                      size_t pktsize)
+{
+  uint8_t buf[pktsize+4];
+  size_t frame_len = 2;
+  buf[0] = 0x82; // binary frame, unmasked, final
+  if (pktsize <= 125) {
+    buf[1] = pktsize;
+  } else {
+    buf[1] = 126;
+    buf[2] = pktsize >> 8;
+    buf[3] = pktsize & 0xFF;
+    frame_len = 4;
+  }
+  memcpy(buf + frame_len, packet, pktsize);
+  frame_len += pktsize;
+
+  return io_tcp_send(fdo, fd, buf, frame_len);
+}
+
+io_vtable tl_io_ws_vtable = {
+  NULL,
+  io_tcp_fdopen,
+  io_tcp_close,
+  io_ws_recv,
+  io_ws_send,
   io_tcp_drain
 };
