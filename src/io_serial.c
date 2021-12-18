@@ -180,7 +180,9 @@ static int io_serial_open(const char *location, int flags, tlio_logger *logger)
       TL_SERIAL_SLIP_END,
     };
 
-    write(fd, reset_buf, sizeof(reset_buf));
+    if (write(fd, reset_buf, sizeof(reset_buf)) != sizeof(reset_buf))
+      goto close_and_error;
+
     // Ensure the data gets sent to the driver
     tcdrain(fd);
   }

@@ -1,8 +1,8 @@
-# Copyright: 2016 Twinleaf LLC
+# Copyright: 2016-2021 Twinleaf LLC
 # Author: gilberto@tersatech.com
 # License: MIT
 
-CCFLAGS = -g -Wall -Wextra -Iinclude/ -std=gnu11
+CCFLAGS = -O2 -g -Wall -Wextra -Iinclude/ -std=gnu11
 
 .DEFAULT_GOAL = all
 .SECONDARY:
