@@ -105,7 +105,8 @@ static int io_tcp_open(const char *location, int flags, tlio_logger *logger)
 
   // connect
   if (connect(sock, ai.ai_addr, ai.ai_addrlen) == -1) {
-    if ((errno != EAGAIN) && (errno != EWOULDBLOCK)) {
+    if ((errno != EAGAIN) && (errno != EWOULDBLOCK) &&
+        (errno != EINPROGRESS)) {
       close(sock);
       return -1;
     }
