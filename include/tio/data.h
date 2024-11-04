@@ -171,10 +171,11 @@ struct tl_metadata_container {
 
 struct tl_metadata_device {
   uint8_t fixed_len;
-  uint8_t n_streams;
+  uint8_t name_varlen;
   uint32_t session_id;
   uint8_t serial_varlen;
   uint8_t firmware_varlen;
+  uint8_t n_streams;
 } __attribute__((__packed__));
 
 struct tl_metadata_stream {
@@ -192,6 +193,10 @@ struct tl_metadata_stream {
 #define TL_METADATA_EPOCH_SYSTIME 2
 #define TL_METADATA_EPOCH_UNIX    3
 
+#define TL_METADATA_FILTER_NONE          0
+#define TL_METADATA_FILTER_IIR_SP_LPF1   1
+#define TL_METADATA_FILTER_IIR_SP_LPF2   2
+
 // If this flag is set, the stream is not actually active, and the
 // rest of the segment metadata should be ignored.
 #define TL_METADATA_SEGMENT_FLAG_INVALID     1
@@ -208,16 +213,14 @@ struct tl_metadata_segment {
   uint32_t sampling_rate;
   uint32_t decimation;
   float filter_cutoff;
+  uint8_t filter_type;
 } __attribute__((__packed__));
 
-#define TL_METADATA_COLUMN_RESAMPLED   1
-#define TL_METADATA_COLUMN_UNFILTERED  2
 struct tl_metadata_column {
   uint8_t fixed_len;
   uint8_t stream_id;
   uint16_t index;
   uint8_t data_type;
-  uint8_t flags;
   uint8_t name_varlen;
   uint8_t units_varlen;
   uint8_t description_varlen;
