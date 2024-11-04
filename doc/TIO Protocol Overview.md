@@ -156,7 +156,7 @@ is being sent out (debug, info, warning, error).
 ### RPC request
 
 RPC requests use type TL_PTYPE_RPC_REQ (2), and the packet is defined
-in twinleaf/rpc.h as tl_rpc_request_packet.
+in tio/rpc.h as tl_rpc_request_packet.
 
 ```
  0                   1                   2                   3
@@ -184,7 +184,7 @@ RPC Payload (optional): Comes after the name, if any, or the method ID. This wou
 ### RPC reply
 
 RPC replies use type TL_PTYPE_RPC_REP (3), and the packet is defined
-in twinleaf/rpc.h as tl_rpc_reply_packet.
+in tio/rpc.h as tl_rpc_reply_packet.
 
 ```
  0                   1                   2                   3
@@ -204,7 +204,7 @@ RPC that was called. Receiving this packet implies the RPC was successful.
 ### RPC error
 
 RPC requests use type TL_PTYPE_RPC_ERROR, and the packet is defined
-in twinleaf/rpc.h as tl_rpc_error_packet.
+in tio/rpc.h as tl_rpc_error_packet.
 
 ```
  0                   1                   2                   3
@@ -222,12 +222,40 @@ Request ID matches the one from the request. Receving this packet means the
 RPC failed. See error codes in rpc.h. Payload depends on the specific error,
 and most of the time is either empty or a more detailed error string.
 
+### RPC setting
+
+Some device properties which can be read or changed via RPC will also
+generate a packet with type TL_PTYPE_RPC_SETTING when they change, which
+is defined in tio/rpc.h as tl_rpc_setting_packet. These are broadcast
+to every client when using the proxy, and are used to keep concurrent
+clients in the right state when one of them makes changes via RPCs.
+
+```
+ 0                   1                   2                   3
+  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+  |  Name Length  |     Flags     |                               |
+  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+                               |
+  |                      [RPC/setting name]                       |
+  =                    (`Name length` bytes)                      =
+  |                                                               |
+  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+  |                                                               |
+  =                    [Setting value] (1+ bytes)                 =
+  |                                                               |
+  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```
+
+Receiving this packet indicates that the named setting has changed to
+the value contained.
+
 ### Published data
 
-*TODO: Describe streaming changes in v3.*
-
 Uses types TL_PTYPE_STREAMN(N), for 0 <= N < 128, and the packet is defined
-in twinleaf/data.h as tl_data_stream_packet.
+in tio/data.h as tl_data_stream_packet.
+
+If N is 0 this is a legacy stream, and the pyaload starts with the low
+32 bits of the sample number, followed by the sample data.
 
 ```
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+} {-+
@@ -235,55 +263,120 @@ in twinleaf/data.h as tl_data_stream_packet.
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+} {-+
 ```
 
-Sample #: This is the low 32 bit of the sample number of the first sample
-in the packet (so the sample number wraps to zero after sample 2^32-1).
-The particular data format of a sample is communicated via the stream
-description packet. A data packet is guaranteed to contain an integer number
-of samples, with sample numbers that are contiguous.
+The field is called `start_sample` for historical reasons, but there will be
+only one sample per packet.
+
+If  1 <= N < 128, the packet is as follows:
+
+```
+ 0                   1                   2                   3
+  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+  |   Sample# L   |   Sample# M   |   Sample# H   |    Segment    |
+  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+  |                        [Sample data]                          |
+  =                         (1+ bytes)                            =
+  |                                                               |
+  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```
+
+In place of the low 32 bits of a 64 bit sample number, here we have a 24 bit
+sample number (sample_start = L + (M<<8) + (H<<16)) plus a segment ID.
+
+Here the sample number is a starting number, and the sample data can
+potentially contain multiple samples (note: unlike for legacy streams, here
+all samples have the same size).
+
+Sample numbers here are not truncated and do not roll over: each stream will
+send out data in "segments", which represent a contiguous acquisition with
+all the same parameters (data rate, filtering, etc) for all samples. One of
+the segment parameters is the start time, so if no other change occurs before
+a rollover, data will automatically start to be sent out on the next segment,
+bumping the start time and resetting the sample number.
 
 ### Stream Description
 
-Uses type TL_PTYPE_STREAMDESC, and the packet is defined
-in twinleaf/data.h as tl_data_stream_desc_packet.
+The meaning of the data in the streams is described either in packets of
+type TL_PTYPE_METADATA (which are broadcast by default), or can be queried
+via RPCs. These packets (tl_metadata_container in tio/data.h) are just
+containers for specific metadata structures:
 
-Payload consists of this struct (TODO: diagram):
+- tl_metadata_device: general information about the device
+- tl_metadata_stream: static information about a stream
+- tl_metadata_column: static information about a column (component) in a stream
+- tl_metadata_segment: information about a stream segment
+
+Here, only the segment metadata regularly changes. Stream and column metadata
+for a given device can only changes as a result of a firmware upgrade, which
+is also true for device-level metadata except for the session id (which will
+reset to a random value every time the device boots).
+
+A stream has a number of segments. It is possible to query their metadata
+arbitrarily via RPC, however only the metadata for the current segment is
+broadcast.
+
+A metadata packet looks as follows:
 
 ```
-struct tl_data_stream_desc_header {
-  // Stream ID described by these parameters
-  uint8_t stream_id;
-
-  // Fundamental data type for the data (every channel in a sample has the
-  // same type)
-  uint8_t type;
-
-  // Number of channels in a sample.
-  uint8_t channels;
-
-  // Arbitrary ID that should change when an acquisition is restarted
-  uint8_t restart_id;
-
-  // Start timestamp, in ns (epoch depends on flags)
-  uint64_t start_timestamp;
-
-  // Sample number of the first sample in the last packet sent,
-  // or of the next packet if FIRST flag is set (in that case, it is
-  // not guaranteed that it won't skip)
-  uint64_t sample_counter;
-
-  // Sampling period, in us, where 
-  // period_seconds = 1e-6 * period_numerator / period_denominator
-  uint32_t period_numerator;
-  uint32_t period_denominator;
-
-  // Flags and timestamp type
-  uint8_t flags;
-  uint8_t tstamp_type;
-} __attribute__((__packed__));
+ 0                   1                   2                   3
+  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+  |     Type      |     Flags     |   Fixed Len   |               |
+  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+               |
+  |              [Fixed length fields for this type]              |
+  =                      (`Fixed len` bytes)                      =
+  |                                                               |
+  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+  |                                                               |
+  =              [Variable length fields] (0+ bytes)              =
+  |                                                               |
+  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 
-followed by a textual name for the stream (not null terminated).
+Here, the container specifies the type of the contained metadata:
+- TL_METADATA_DEVICE
+- TL_METADATA_STREAM
+- TL_METADATA_CURRENT_SEGMENT
+- TL_METADATA_COLUMN
+and these flags:
+- TL_METADATA_PERIODIC: automatically generated periodic broadcast.
+- TL_METADATA_UPDATE: automatically generated update due to change, can only
+  be set for TL_METADATA_CURRENT_SEGMENT.
+- TL_METADATA_LAST: indicates this is the last metadata packet. For periodic
+  broadcasts, it indicates the last packet before starting all over. For
+  updates, it indicates the last packet in an update (updades with multiple
+  packets can happen if e.g. two streams are linked and changing a setting
+  changes both at the same time).
 
+The rest is simply the specific metadata structure, which is also used in RPCs.
+These all share the same high level structure: they start with a byte
+indicating the length of the fixed-sized fields (including the length itself),
+followed by the content of each variable length field. A variable length field
+has a one byte size in the fixed part of the struc, which indicates how many
+bytes the variable length data takes up, after the end of the fixed struct.
+
+Specifying the total length of the fixed fields allows for backwards and
+forwards compatibility: it allows older code to skip over newly added fields
+(knowing where to look for for the start of varlen data), and newer code to
+detect whether some new fields are not present in the metadata and should be
+default-initialized.
+
+For a contrived example, this
+
+```
+struct metadata_example {
+  uint8_t fixed_len;
+  uint8_t name_varlen;
+  uint8_t units_varlen;
+  uint8_t value;
+};
+```
+
+for name = "field", units = "nT", and value = 123 would be serialized as
+
+```
+[4, 5, 2, 123, 'f', 'i', 'e', 'l', 'd', 'n', 'T']
+```
 
 ## Protocol specific encoding
 
