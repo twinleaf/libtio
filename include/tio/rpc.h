@@ -1,5 +1,4 @@
-// Copyright: 2016-2017 Twinleaf LLC
-// Author: gilberto@tersatech.com
+// Copyright: 2016-2024 Twinleaf LLC
 // License: MIT
 
 // Structures, constants, and helpers for RPC related packets.
@@ -115,6 +114,39 @@ static inline tl_rpc_error_packet *tl_rpc_make_error(tl_rpc_request_packet *r,
                                                      rpc_error_t code);
 static inline size_t tl_rpc_error_payload_size(const tl_rpc_error_packet *err);
 
+// Settings
+
+struct tl_rpc_setting_header {
+  uint8_t name_len;
+  uint8_t flags;
+} __attribute__((__packed__));
+typedef struct tl_rpc_setting_header tl_rpc_setting_header;
+
+#define TL_SETTING_MAX_PAYLOAD_SIZE \
+  (TL_PACKET_MAX_PAYLOAD_SIZE - sizeof(tl_rpc_setting_header))
+
+struct tl_rpc_setting_packet {
+  tl_packet_header      hdr;
+  tl_rpc_setting_header     setting;
+  uint8_t payload[TL_SETTING_MAX_PAYLOAD_SIZE];
+  uint8_t routing[TL_PACKET_MAX_ROUTING_SIZE];
+
+#ifdef __cplusplus
+  template<typename T> inline T *payload_start();
+  template<typename T> inline const T *payload_start() const;
+  inline size_t payload_size() const;
+  const char *name_start() const;
+  inline size_t name_size() const;
+#endif
+} __attribute__((__packed__));
+typedef struct tl_rpc_setting_packet tl_rpc_setting_packet;
+
+static inline void *tl_rpc_setting_payload_start(tl_rpc_setting_packet *sp);
+static inline
+size_t tl_rpc_setting_payload_size(const tl_rpc_setting_packet *sp);
+static inline
+const char *tl_rpc_setting_name_start(const tl_rpc_setting_packet *sp);
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -196,6 +228,24 @@ static inline size_t tl_rpc_error_payload_size(const tl_rpc_error_packet *err)
   return err->hdr.payload_size - sizeof(tl_rpc_error_header);
 }
 
+static inline void *tl_rpc_setting_payload_start(tl_rpc_setting_packet *sp)
+{
+  return &(sp->payload[sp->setting.name_len]);
+}
+
+static inline
+size_t tl_rpc_setting_payload_size(const tl_rpc_setting_packet *sp)
+{
+  return (sp->hdr.payload_size - sizeof(tl_rpc_setting_header) -
+          sp->setting.name_len);
+}
+
+static inline
+const char *tl_rpc_setting_name_start(const tl_rpc_setting_packet *sp)
+{
+  return (const char*)&(sp->payload[0]);
+}
+
 #ifdef __cplusplus
 
 template<typename T> inline T *tl_rpc_request_packet::payload_start()
@@ -248,6 +298,30 @@ template<typename T> inline const T *tl_rpc_error_packet::payload_start() const
 inline size_t tl_rpc_error_packet::payload_size() const
 {
   return hdr.payload_size - sizeof(tl_rpc_error_header);
+}
+
+template<typename T> inline T *tl_rpc_setting_packet::payload_start()
+{
+  return reinterpret_cast<T*>(&payload[name_size()]);
+}
+
+template<typename T> inline const T *
+tl_rpc_setting_packet::payload_start() const
+{
+  return reinterpret_cast<const T*>(&payload[name_size()]);
+}
+
+inline size_t tl_rpc_setting_packet::payload_size() const
+{
+  return hdr.payload_size - sizeof(tl_rpc_request_header) - name_size();
+}
+
+inline const char *tl_rpc_setting_packet::name_start() const {
+  return reinterpret_cast<const char*>(&payload[0]);
+}
+
+inline size_t tl_rpc_setting_packet::name_size() const {
+  return setting.name_len;
 }
 
 #endif

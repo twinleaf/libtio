@@ -1,5 +1,4 @@
-// Copyright: 2016 Twinleaf LLC
-// Author: gilberto@tersatech.com
+// Copyright: 2016-2024 Twinleaf LLC
 // License: MIT
 
 #ifndef TL_DATA_H
@@ -122,9 +121,19 @@ typedef struct tl_stream_update_packet tl_stream_update_packet;
 #define TL_DATA_STREAM_MAX_PAYLOAD_SIZE \
   (TL_PACKET_MAX_PAYLOAD_SIZE - sizeof(uint32_t))
 
+struct tl_data_stream_sample {
+  uint8_t sample_start_0;
+  uint8_t sample_start_1;
+  uint8_t sample_start_2;
+  uint8_t segment_id;
+} __attribute__((__packed__));
+
 struct tl_data_stream_packet {
   tl_packet_header hdr;
-  uint32_t start_sample; // low 32 bit of sample counter
+  union {
+    uint32_t start_sample; // low 32 bit of sample counter
+    struct tl_data_stream_sample sample;
+  };
   uint8_t data[TL_DATA_STREAM_MAX_PAYLOAD_SIZE];
 } __attribute__((__packed__));
 typedef struct tl_data_stream_packet tl_data_stream_packet;
@@ -133,5 +142,88 @@ static inline size_t tl_data_type_size(unsigned type)
 {
   return (type >> 4) & 0xF;
 }
+
+// Streams metadata structs.
+
+struct tl_metadata_header {
+  uint8_t type;
+  uint8_t flags;
+} __attribute__((__packed__));
+typedef struct tl_metadata_header tl_metadata_header;
+
+#define TL_METADATA_DEVICE              1
+#define TL_METADATA_STREAM              2
+#define TL_METADATA_CURRENT_SEGMENT     3
+#define TL_METADATA_COLUMN              4
+
+#define TL_METADATA_PERIODIC            (1<<0)
+#define TL_METADATA_UPDATE              (1<<1)
+#define TL_METADATA_LAST                (1<<2)
+
+#define TL_METADATA_MAX_PAYLOAD_SIZE                        \
+  (TL_PACKET_MAX_PAYLOAD_SIZE - sizeof(tl_metadata_header))
+
+struct tl_metadata_container {
+  tl_packet_header hdr;
+  tl_metadata_header mhdr;
+  uint8_t payload[TL_METADATA_MAX_PAYLOAD_SIZE];
+} __attribute__((__packed__));
+
+struct tl_metadata_device {
+  uint8_t fixed_len;
+  uint8_t name_varlen;
+  uint32_t session_id;
+  uint8_t serial_varlen;
+  uint8_t firmware_varlen;
+  uint8_t n_streams;
+} __attribute__((__packed__));
+
+struct tl_metadata_stream {
+  uint8_t fixed_len;
+  uint8_t stream_id;
+  uint16_t n_columns;
+  uint16_t sample_size;
+  uint16_t buf_samples;
+  uint8_t n_segments;
+  uint8_t name_varlen;
+} __attribute__((__packed__));
+
+#define TL_METADATA_EPOCH_INVALID 0
+#define TL_METADATA_EPOCH_ZERO    1
+#define TL_METADATA_EPOCH_SYSTIME 2
+#define TL_METADATA_EPOCH_UNIX    3
+
+#define TL_METADATA_FILTER_NONE          0
+#define TL_METADATA_FILTER_IIR_SP_LPF1   1
+#define TL_METADATA_FILTER_IIR_SP_LPF2   2
+
+// If this flag is set, the stream is not actually active, and the
+// rest of the segment metadata should be ignored.
+#define TL_METADATA_SEGMENT_FLAG_INVALID     1
+
+struct tl_metadata_segment {
+  uint8_t fixed_len;
+  uint8_t stream_id;
+  uint8_t segment_id;
+  uint8_t flags;
+  uint8_t time_ref_epoch;
+  uint8_t time_ref_serial_varlen;
+  uint32_t time_ref_session_id;
+  uint32_t start_time; // seconds after the epoch
+  uint32_t sampling_rate;
+  uint32_t decimation;
+  float filter_cutoff;
+  uint8_t filter_type;
+} __attribute__((__packed__));
+
+struct tl_metadata_column {
+  uint8_t fixed_len;
+  uint8_t stream_id;
+  uint16_t index;
+  uint8_t data_type;
+  uint8_t name_varlen;
+  uint8_t units_varlen;
+  uint8_t description_varlen;
+} __attribute__((__packed__));
 
 #endif // TL_DATA_H

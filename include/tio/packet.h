@@ -1,5 +1,4 @@
-// Copyright: 2016-2020 Twinleaf LLC
-// Author: gilberto@tersatech.com
+// Copyright: 2016-2024 Twinleaf LLC
 // License: MIT
 
 // Platform-independent packet-related structures and constants for native
@@ -72,6 +71,8 @@ typedef struct tl_packet tl_packet;
 #define TL_PTYPE_STREAM      8 // Update to a stream's parameters
 #define TL_PTYPE_RESERVED_0  9 // Disallow packet type equivalent to '\t'
 #define TL_PTYPE_RESERVED_1 10 // Disallow packet type equivalent to '\n'
+#define TL_PTYPE_METADATA   11 // Broadcast metadata packet
+#define TL_PTYPE_SETTING    12 // Broadcast setting change
 #define TL_PTYPE_RESERVED_2 13 // Disallow packet type equivalent to '\r'
 #define TL_PTYPE_TEXT       63 // Synthesized packet with text mode content
 #define TL_PTYPE_USER       64
@@ -89,10 +90,10 @@ static inline size_t tl_packet_routing_size(const tl_packet_header *pkt);
 static inline size_t tl_packet_ttl(const tl_packet_header *pkt);
 
 // Return a pointer to the start of the payload
-static inline uint8_t *tl_packet_payload_data(tl_packet_header *pkt);
+static inline uint8_t *tl_packet_payload_data(void *pkt);
 
 // Return a pointer to the start of the routing data
-static inline uint8_t *tl_packet_routing_data(tl_packet_header *pkt);
+static inline uint8_t *tl_packet_routing_data(void *pkt);
 
 // Set routing size.
 static inline void tl_packet_set_routing_size(tl_packet_header *pkt,
@@ -150,14 +151,16 @@ static inline size_t tl_packet_ttl(const tl_packet_header *pkt)
   return ((pkt->routing_size_and_ttl >> 4) & 0x0F);
 }
 
-static inline uint8_t *tl_packet_payload_data(tl_packet_header *pkt)
+static inline uint8_t *tl_packet_payload_data(void *pkt)
 {
-  return ((uint8_t*) pkt) + sizeof(*pkt);
+  tl_packet_header *hdr = (tl_packet_header*) pkt;
+  return ((uint8_t*) pkt) + sizeof(*hdr);
 }
 
-static inline uint8_t *tl_packet_routing_data(tl_packet_header *pkt)
+static inline uint8_t *tl_packet_routing_data(void *pkt)
 {
-  return ((uint8_t*) pkt) + sizeof(*pkt) + pkt->payload_size;
+  tl_packet_header *hdr = (tl_packet_header*) pkt;
+  return ((uint8_t*) pkt) + sizeof(*hdr) + hdr->payload_size;
 }
 
 static inline void tl_packet_set_routing_size(tl_packet_header *pkt,
