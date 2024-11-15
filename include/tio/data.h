@@ -138,6 +138,18 @@ struct tl_data_stream_packet {
 } __attribute__((__packed__));
 typedef struct tl_data_stream_packet tl_data_stream_packet;
 
+static inline
+uint32_t tl_data_stream_sample_number(const struct tl_data_stream_packet *pkt)
+{
+  if (pkt->hdr.type == TL_PTYPE_STREAMN(0)) {
+    return pkt->start_sample;
+  } else {
+    return ((pkt->sample.sample_start_0) |
+            (pkt->sample.sample_start_1 << 8) |
+            (pkt->sample.sample_start_2 << 16));
+  }
+}
+
 static inline size_t tl_data_type_size(unsigned type)
 {
   return (type >> 4) & 0xF;
@@ -151,9 +163,10 @@ struct tl_metadata_header {
 } __attribute__((__packed__));
 typedef struct tl_metadata_header tl_metadata_header;
 
+#define TL_METADATA_INVALID             0
 #define TL_METADATA_DEVICE              1
 #define TL_METADATA_STREAM              2
-#define TL_METADATA_CURRENT_SEGMENT     3
+#define TL_METADATA_SEGMENT             3
 #define TL_METADATA_COLUMN              4
 
 #define TL_METADATA_PERIODIC            (1<<0)
@@ -181,10 +194,10 @@ struct tl_metadata_device {
 struct tl_metadata_stream {
   uint8_t fixed_len;
   uint8_t stream_id;
-  uint16_t n_columns;
+  uint8_t n_columns;
+  uint8_t n_segments;
   uint16_t sample_size;
   uint16_t buf_samples;
-  uint8_t n_segments;
   uint8_t name_varlen;
 } __attribute__((__packed__));
 
@@ -197,9 +210,12 @@ struct tl_metadata_stream {
 #define TL_METADATA_FILTER_IIR_SP_LPF1   1
 #define TL_METADATA_FILTER_IIR_SP_LPF2   2
 
-// If this flag is set, the stream is not actually active, and the
-// rest of the segment metadata should be ignored.
-#define TL_METADATA_SEGMENT_FLAG_INVALID     1
+// If this flag is not set, the rest of the segment metadata should be ignored
+// as it means it's not populated/incorrect/invalid at this time.
+#define TL_METADATA_SEGMENT_VALID        1
+// If this flag is set, this stream segment is active, i.e. new samples
+// are being generated.
+#define TL_METADATA_SEGMENT_ACTIVE       2
 
 struct tl_metadata_segment {
   uint8_t fixed_len;
@@ -219,7 +235,7 @@ struct tl_metadata_segment {
 struct tl_metadata_column {
   uint8_t fixed_len;
   uint8_t stream_id;
-  uint16_t index;
+  uint8_t index;
   uint8_t data_type;
   uint8_t name_varlen;
   uint8_t units_varlen;
